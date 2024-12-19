@@ -29,6 +29,7 @@
       <div>
         <strong>{{ result.model }}:</strong>
         <llm-put v-model="output[index].response" />
+        <p v-if="result.duration !== null">耗时: {{ result.duration }} 秒</p>
       </div>
     </el-col>
   </el-row>
@@ -70,11 +71,16 @@ const execute = async () => {
   try {
     const selectedModels = modelList.value;
 
-    // 清空 output 数组，并为每个选定的模型创建一个初始输出对象
-    output.value = selectedModels.map(model => ({
-      model: model,
-      response: ''
-    }));
+    // 清空 output 数组，并为每个选定的模型创建一个初始输出对象，包含开始时间
+    // 关键修改：使用 map 遍历 models，并根据 modelList 进行过滤和排序
+    output.value = models.value
+      .filter(model => selectedModels.includes(model.value))
+      .map(model => ({
+        model: model.value,
+        response: '',
+        startTime: Date.now(),
+        duration: null
+      }));
 
     // 自定义 Base64 编码函数，支持 UTF-8 字符
     const encodeBase64 = (str) => {
@@ -88,7 +94,9 @@ const execute = async () => {
     const encodedMsg = encodeBase64(msg.value);
 
     // 创建一个数组来保存每个请求的 Promise 及其索引
-    const promisesWithIndex = selectedModels.map(async (model, index) => {
+    // 关键修改：使用 map 遍历 output.value，并使用 index 作为请求的索引
+    const promisesWithIndex = output.value.map(async (outputModel, index) => {
+      const model = outputModel.model;
       try {
         const response = await fetch('http://localhost:5000/query_stream', {
           method: 'POST',
@@ -110,12 +118,14 @@ const execute = async () => {
             errorMsg = errorData.error || errorMsg; // 如果有 error 字段，则使用它
           } catch (e) {
             // 如果解析 JSON 失败，可能响应不是 JSON 格式，使用 text() 方法
-            try{
+            try {
               errorMsg = await response.text();
-            } catch(err){
+            } catch (err) {
               console.error("Failed to parse error response as text:", err);
             }
           }
+          // 在请求结束后计算持续时间
+          output.value[index].duration = ((Date.now() - output.value[index].startTime) / 1000).toFixed(2);
           return { index, error: errorMsg };
         }
 
@@ -132,8 +142,12 @@ const execute = async () => {
             output.value[index].response += chunk;
           }
         }
+        // 在请求结束后计算持续时间
+        output.value[index].duration = ((Date.now() - output.value[index].startTime) / 1000).toFixed(2);
         return { index, response: output.value[index].response }; // 标记请求成功
       } catch (error) {
+        // 在请求结束后计算持续时间
+        output.value[index].duration = ((Date.now() - output.value[index].startTime) / 1000).toFixed(2);
         return { index, error: error.message || '请求失败，请重试' };
       }
     });
@@ -153,7 +167,7 @@ const execute = async () => {
     });
   } catch (error) {
     console.error('Error sending POST request:', error);
-    output.value = [{ model: '错误', response: '请求失败，请重试' }];
+    output.value = [{ model: '错误', response: '请求失败，请重试', startTime: Date.now(), duration: 0 }];
   }
 };
 </script>

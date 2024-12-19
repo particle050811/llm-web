@@ -175,3 +175,11 @@ const execute = async () => {
   }
 };
 </script>
+
+<style>
+  /* 强制将页面宽度设置为 1024px */
+  body {
+    width: 1670px;
+    margin: 0 auto; /* 居中显示 */
+  }
+</style>

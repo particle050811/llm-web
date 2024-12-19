@@ -46,10 +46,13 @@ const output = ref([]);
 const modelList = ref([]); // 选中的模型列表
 const models = ref([]);    // 模型列表
 
+const host = window.location.hostname;
+
 // 获取模型列表的函数
 const fetchModels = async () => {
   try {
-    const response = await fetch('http://localhost:5000/fetchModels');
+    const url = `http://${host}:5000/fetchModels`;
+    const response = await fetch(url);
     const data = await response.json();
     // 将字符串数组转换为对象数组
     models.value = data.map(model => ({
@@ -98,7 +101,8 @@ const execute = async () => {
     const promisesWithIndex = output.value.map(async (outputModel, index) => {
       const model = outputModel.model;
       try {
-        const response = await fetch('http://localhost:5000/query_stream', {
+        const url = `http://${host}:5000/query_stream`;
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

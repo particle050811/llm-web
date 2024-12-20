@@ -1,31 +1,31 @@
 <template>
-  <el-row justify="center">
-    <el-col :span="8" justify="center">
+  <el-row justify="center" :gutter="20">
+    <el-col :xs="24" :lg="8" justify="center">
       <strong>系统预设提示词</strong>
       <llm-put v-model="prompt" />
     </el-col>
-    <el-col :span="6" justify="center" style="margin-left: 20px;">
+    <el-col :xs="24" :lg="6" justify="center">
       <strong>用户输入</strong>
       <llm-put v-model="msg" />
     </el-col>
   </el-row>
   <el-row justify="center">
-    <el-col :span="10">
+    <el-col :xs="20" :lg="10">
       <el-checkbox-group v-model="modelList">
         <el-row>
-          <el-col :span="6" v-for="(model, index) in models" :key="model.value">
+          <el-col :xs="12" :lg="6" v-for="(model, index) in models" :key="model.value">
             <el-checkbox :label="model.label" :value="model.value">
             </el-checkbox>
           </el-col>
         </el-row>
       </el-checkbox-group>
     </el-col>
-    <el-col :span="1" class="button-container">
-      <el-button style="margin-left: 20px;" @click="execute">执行</el-button>
+    <el-col :xs="4" :lg="1" class="button-container">
+      <el-button @click="execute">执行</el-button>
     </el-col>
   </el-row>
-  <el-row justify="center" v-if="output.length > 0">
-    <el-col :span="7" v-for="(result, index) in output" :key="index" style="margin-left: 20px;">
+  <el-row justify="center" v-if="output.length > 0" :gutter="20">
+    <el-col :xs="24" :lg="8" v-for="(result, index) in output" :key="index">
       <div>
         <strong>{{ result.model }}:</strong>
         <llm-put v-model="output[index].response" />
@@ -176,10 +176,3 @@ const execute = async () => {
 };
 </script>
 
-<style>
-  /* 强制将页面宽度设置为 1024px */
-  body {
-    width: 1670px;
-    margin: 0 auto; /* 居中显示 */
-  }
-</style>

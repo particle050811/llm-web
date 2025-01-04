@@ -31,6 +31,13 @@ model_list = list(cg.keys())
 def query(model, prompt, msg):
     try:
         md = cg[model]
+        
+        # 判断是否需要 JSON 输出
+        if 'json' in prompt:
+            response_format = {'type': 'json_object'}
+        else:
+            response_format = None
+        
         client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
         response = client.chat.completions.create(
             model=md['model'],
@@ -38,25 +45,25 @@ def query(model, prompt, msg):
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": msg}
             ],
-            stream=True,# 启用流式输出
-            response_format={'type': 'json_object'}
+            stream=True,
+            response_format=response_format
         )
 
         # 生成器函数，用于流式返回
         def generate():
             for chunk in response:
-              if chunk.choices[0].delta.content:
-                 yield chunk.choices[0].delta.content
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
 
         return generate()
 
     except openai.OpenAIError as e:
         print(f"OpenAI API 错误: {e}")
-        return ["AI模型API调用失败"]
+        return jsonify({"error": "AI模型API调用失败"}), 500
 
     except Exception as e:
         print(f"未知错误: {e}")
-        return ["发生未知错误"]
+        return jsonify({"error": "发生未知错误"}), 500
 
 @app.route('/fetchModels', methods=['GET'])
 def get_model_list():

@@ -38,6 +38,8 @@ def query(model, prompt, msg):
         else:
             response_format = None
         
+        #response_format = None
+
         client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
         response = client.chat.completions.create(
             model=md['model'],
@@ -52,8 +54,11 @@ def query(model, prompt, msg):
         # 生成器函数，用于流式返回
         def generate():
             for chunk in response:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                delta = chunk.choices[0].delta
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    yield delta.reasoning_content
+                elif hasattr(delta, 'content') and delta.content:
+                    yield delta.content
 
         return generate()
 

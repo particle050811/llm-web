@@ -12,7 +12,7 @@
             :inactive-action-icon="Hide"
           />
         </el-col>
-<el-col :span="24" justify="center" v-if="promptShow" style="margin-bottom: 5px;">
+        <el-col :span="24" justify="center" v-if="promptShow" style="margin-bottom: 5px;">
           <el-row>
             <el-col :span="6"><el-button @click="prompt = audit1">审核1</el-button></el-col>
             <el-col :span="6"><el-button @click="prompt = audit2">审核2</el-button></el-col>

@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import openai
 import json
-import base64
 from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
 
@@ -38,7 +37,8 @@ def query(model, prompt, msg):
         else:
             response_format = None
         
-        #response_format = None
+        if "R1" in md:
+            response_format = None
 
         client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
         response = client.chat.completions.create(
@@ -55,10 +55,8 @@ def query(model, prompt, msg):
         def generate():
             for chunk in response:
                 delta = chunk.choices[0].delta
-                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                    yield delta.reasoning_content
-                elif hasattr(delta, 'content') and delta.content:
-                    yield delta.content
+                # 将delta对象转换为JSON字符串并返回
+                yield json.dumps(delta.model_dump()) + '\n'
 
         return generate()
 
@@ -83,12 +81,10 @@ def query_llm_stream():
     data = request.get_json()
     model = data.get('model')
     prompt = data.get('prompt')
-    prompt = base64.b64decode(prompt).decode('utf-8')
     msg = data.get('msg')
-    msg = base64.b64decode(msg).decode('utf-8')
 
     if model in model_list:
-      return Response(stream_with_context(query(model, prompt, msg)))
+        return Response(stream_with_context(query(model, prompt, msg)))
     else:
         return jsonify({'error': '不支持的模型'}), 400
 

@@ -92,7 +92,7 @@ export default {
         const fileHash = await this.calculateFileHash(this.selectedFile)
 
         this.uploadStatus = '正在检查服务器...'
-        const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(this.selectedFile.type)}&;fileHash=${fileHash}`)
+        const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(this.selectedFile.type)}&fileHash=${fileHash}`)
         if (!urlResponse.ok) {
           throw new Error(`获取上传链接失败，状态码: ${urlResponse.status}`)
         }

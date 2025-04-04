@@ -2,8 +2,9 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import openai
 import json
-import oss2
-from oss2.credentials import EnvironmentVariableCredentialsProvider
+# import oss2 # Removed OSS
+# from oss2.credentials import EnvironmentVariableCredentialsProvider # Removed OSS
+import os # Added for local file operations
 from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
 import requests
@@ -12,6 +13,12 @@ import mimetypes # 仍然需要推断文件名以帮助API
 
 app = Flask(__name__)
 CORS(app)  # 启用 CORS，允许跨域请求
+
+# 本地音频文件存储配置
+AUDIO_FOLDER = 'audio_files'
+if not os.path.exists(AUDIO_FOLDER):
+    os.makedirs(AUDIO_FOLDER)
+    print(f"创建本地音频存储目录: {AUDIO_FOLDER}")
 
 limiter = Limiter(
     get_remote_address,
@@ -106,103 +113,102 @@ def query_llm_stream():
 # 自定义错误处理
 
 
-# OSS配置
-endpoint = "https://oss-cn-beijing.aliyuncs.com"
-region = "cn-beijing"
-bucket_name = "llm-web-mp3"
-
-# 从环境变量获取OSS凭证
-try:
-    # 强制使用 V2 签名
-    print("强制使用 V2 签名...")
-    creds = EnvironmentVariableCredentialsProvider().get_credentials()
-    if not creds or not creds.access_key_id or not creds.access_key_secret:
-        raise ValueError("无法从环境变量获取 OSS_ACCESS_KEY_ID 或 OSS_ACCESS_KEY_SECRET")
-    auth_v2 = oss2.Auth(creds.access_key_id, creds.access_key_secret)
-    bucket = oss2.Bucket(auth_v2, endpoint, bucket_name)
-    try:
-        bucket.get_bucket_info()
-        print("OSS V2凭证验证成功")
-    except Exception as e:
-        print(f"OSS V2凭证验证失败: {str(e)}")
-        bucket = None
-
-except Exception as e:
-    print(f"OSS初始化失败: {str(e)}")
-    print("请检查环境变量配置: OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET")
-    bucket = None
+# --- OSS 相关代码已移除 ---
 
 @app.route('/api/generate-audio-url', methods=['GET'])
 def generate_audio_url():
-    if not bucket:
-        return jsonify({"error": "OSS服务未正确初始化"}), 500
-        
+    # 不再需要检查 OSS 服务
     try:
-        content_type = request.args.get('contentType', 'audio/mpeg')  # 默认为 audio/mpeg
+        content_type = request.args.get('contentType', 'audio/mpeg')
         file_hash = request.args.get('fileHash')
-        
+
         if not file_hash:
             return jsonify({"error": "缺少文件哈希参数"}), 400
-            
-        # 根据 content_type 推断文件扩展名
-        extension = '.mp3'  # 默认值
+
+        # 根据 content_type 推断文件扩展名 (逻辑保留)
+        extension = '.mp3'
         if '/' in content_type:
             mime_suffix = content_type.split('/')[-1]
             if mime_suffix == 'wav': extension = '.wav'
             elif mime_suffix == 'ogg': extension = '.ogg'
             elif mime_suffix == 'aac': extension = '.aac'
-        
-        object_name = f"audio/{file_hash}{extension}"
+            # 可以根据需要添加更多格式
 
-        # 检查文件是否已存在
-        if bucket.object_exists(object_name):
+        # 构建本地文件名 (不包含 audio/ 前缀，直接存放在 AUDIO_FOLDER 下)
+        object_name = f"{file_hash}{extension}"
+        local_path = os.path.join(AUDIO_FOLDER, object_name)
+
+        # 检查本地文件是否存在
+        if os.path.exists(local_path):
+            print(f"本地文件已存在: {local_path}")
             return jsonify({
                 "status": "exists",
-                "object_name": object_name
-            }), 200, {'Content-Type': 'application/json'}
+                "object_name": object_name # 返回文件名供后续使用
+            }), 200
         else:
-            # 生成预签名URL，包含 Content-Type 头部
-            headers = {'Content-Type': content_type}
-            url = bucket.sign_url('PUT', object_name, 300, headers=headers, slash_safe=True)
-            
+            print(f"本地文件不存在，准备上传: {object_name}")
+            # 不再返回 URL，只返回状态和 object_name
             return jsonify({
                 "status": "new",
-                "url": url,
-                "object_name": object_name
-            }), 200, {'Content-Type': 'application/json'}
+                "object_name": object_name # 返回文件名供上传接口使用
+            }), 200
     except Exception as e:
-        print(f"生成签名URL时出错: {e}")
-        return jsonify({"error": f"生成签名URL失败: {str(e)}"}), 500
+        print(f"检查本地音频文件状态时出错: {e}")
+        return jsonify({"error": f"检查文件状态失败: {str(e)}"}), 500
     
+
+
+# 新增：处理文件上传的接口
+@app.route('/api/upload-audio', methods=['POST'])
+@limiter.limit("120 per hour") # 上传接口限流可以适当放宽
+def upload_audio():
+    if 'file' not in request.files:
+        return jsonify({"error": "缺少文件部分"}), 400
+    file = request.files['file']
+    object_name = request.form.get('object_name') # 从表单获取 object_name
+
+    if not object_name:
+         return jsonify({"error": "缺少 object_name 参数"}), 400
+
+    if file.filename == '':
+        return jsonify({"error": "未选择文件"}), 400
+
+    try:
+        local_path = os.path.join(AUDIO_FOLDER, object_name)
+        file.save(local_path)
+        print(f"文件已保存到本地: {local_path}")
+        return jsonify({"message": "文件上传成功", "object_name": object_name}), 200
+    except Exception as e:
+        print(f"保存上传文件时出错: {e}")
+        return jsonify({"error": f"保存文件失败: {str(e)}"}), 500
 
 
 @app.route('/api/transcribe-audio', methods=['POST'])
 @limiter.limit("60 per hour") # 对识别接口单独限流
 def transcribe_audio_openai_compatible():
-    if not bucket:
-        return jsonify({"error": "OSS 服务未正确初始化"}), 500
-
+    # 不再需要检查 OSS 服务
     data = request.get_json()
-    object_name = data.get('object_name')
+    object_name = data.get('object_name') # 这个 object_name 现在是本地文件名
     model_name = data.get('model')
 
     if not object_name:
         return jsonify({"error": "缺少 object_name 参数"}), 400
 
     try:
-        # 从OSS下载文件内容
+        # 从本地文件系统读取文件内容
+        local_path = os.path.join(AUDIO_FOLDER, object_name)
+        if not os.path.exists(local_path):
+             return jsonify({"error": f"本地文件不存在: {object_name}"}), 404
+
         try:
-            result = bucket.get_object(object_name)
-            file_content = result.read()
-            file_name = object_name.split('/')[-1] if '/' in object_name else object_name
-            file_format = file_name.split('.')[-1] if '.' in file_name else "mp3"
-            
-            md = cg[model_name]
-        except oss2.exceptions.NoSuchKey:
-            return jsonify({"error": f"OSS文件不存在: {object_name}"}), 404
+            with open(local_path, 'rb') as f:
+                file_content = f.read()
+            # 从 object_name 推断文件格式
+            file_format = object_name.split('.')[-1] if '.' in object_name else "mp3"
+            md = cg[model_name] # 获取模型配置
         except Exception as e:
-            print(f"下载OSS文件时出错: {e}")
-            return jsonify({"error": f"下载OSS文件失败: {str(e)}"}), 500
+            print(f"读取本地文件时出错 ({local_path}): {e}")
+            return jsonify({"error": f"读取本地文件失败: {str(e)}"}), 500
         client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
         with open('audio_prompt.txt', 'r',encoding='utf-8') as file:
             audio_prompt=file.read()

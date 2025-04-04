@@ -1,36 +1,71 @@
 <template>
   <div class="upload-container">
-    <h1>音频上传</h1>
-    <input 
-      type="file" 
-      id="audioInput" 
-      accept="audio/*" 
-      @change="handleFileChange" 
-    />
-    <button @click="uploadAudio">上传音频</button>
-    <p v-if="uploadStatus">{{ uploadStatus }}</p>
-    <div v-if="isLoadingTranscription" class="loading">正在识别中...</div>
-    <div v-if="transcriptionResult" class="transcription-result">
-      <h2>识别结果:</h2>
-      <p>{{ transcriptionResult }}</p>
+    <div class="file-upload-row">
+      <input
+        type="file"
+        id="audioInput"
+        accept="audio/*"
+        @change="handleFileChange"
+        class="file-input"
+      />
+    </div>
+    <div class="model-select-row">
+      <select v-model="selectedModel" class="model-select">
+        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        <option value="gemini-2.0-flash-thinking">gemini-2.0-flash-thinking</option>
+        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+      </select>
+    </div>
+    <div class="upload-btn-row">
+      <button @click="uploadAudio" class="upload-btn">上传并识别音频</button>
+    </div>
+    <p v-if="uploadStatus" class="status-text">{{ uploadStatus }}</p>
+    <div class="chat-container">
+      <SentenceBubble
+        v-for="(sentence, index) in parsedSentences"
+        :key="index"
+        :text="sentence.text"
+        :speaker="sentence.speaker"
+      />
     </div>
   </div>
 </template>
 
 <script>
-import CryptoJS from 'crypto-js'
+import CryptoJS from 'crypto-js';
+import SentenceBubble from '@/components/SentenceBubble.vue'; // 新增：导入 SentenceBubble 组件
 
 export default {
+  components: { // 新增：注册组件
+    SentenceBubble,
+  },
   data() {
     return {
       selectedFile: null,
+      selectedModel: 'gemini-2.5-pro',
       uploadStatus: '',
       transcriptionResult: '', // 新增：存储识别结果
       isLoadingTranscription: false // 新增：识别加载状态
     }
   },
-  // 移除 created 钩子中的预签名URL获取逻辑
-  // 改为在 uploadAudio 方法中获取
+  computed: { // 新增：计算属性来解析识别结果
+    parsedSentences() {
+      if (!this.transcriptionResult) {
+        return [];
+      }
+      const sentences = [];
+      // 使用正则表达式匹配 <s>...</s> 或 <o>...</o>
+      const regex = /<(s|o)>(.*?)<\/\1>/g;
+      let match;
+      while ((match = regex.exec(this.transcriptionResult)) !== null) {
+        sentences.push({
+          speaker: match[1], // 's' or 'o'
+          text: match[2].trim(), // 提取文本并去除首尾空格
+        });
+      }
+      return sentences;
+    },
+  },
   methods: {
     async calculateFileHash(file) {
       return new Promise((resolve) => {
@@ -55,38 +90,42 @@ export default {
       try {
         this.uploadStatus = '正在计算文件校验...'
         const fileHash = await this.calculateFileHash(this.selectedFile)
-        
+
         this.uploadStatus = '正在检查服务器...'
-        const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(this.selectedFile.type)}&fileHash=${fileHash}`)
+        const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(this.selectedFile.type)}&amp;fileHash=${fileHash}`)
         if (!urlResponse.ok) {
           throw new Error(`获取上传链接失败，状态码: ${urlResponse.status}`)
         }
         const urlData = await urlResponse.json()
-        
+
         if (urlData.status === 'exists') {
           this.uploadStatus = '文件已存在(服务器已有相同文件)，开始识别...'
-          await this.transcribeAudio(urlData.object_name)
-        } else {
-          if (!urlData.url) {
-            throw new Error('无效的预签名URL')
-          }
+          await this.transcribeAudio(urlData.object_name, this.selectedModel)
+        } else if (urlData.status === 'new') {
+          // 文件不存在，需要上传到新的 /api/upload-audio 接口
+          this.uploadStatus = '准备上传文件...'
+          const formData = new FormData()
+          formData.append('file', this.selectedFile)
+          formData.append('object_name', urlData.object_name) // 将 object_name 作为表单字段发送
 
           this.uploadStatus = '正在上传文件...'
-          const response = await fetch(urlData.url, {
-            method: 'PUT',
-            body: this.selectedFile,
-            headers: {
-              'Content-Type': this.selectedFile.type
-            }
+          const uploadResponse = await fetch('/api/upload-audio', {
+            method: 'POST',
+            body: formData
+            // 注意：发送 FormData 时不需要设置 Content-Type header
           })
 
-          if (response.ok) {
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json() // 可以获取后端返回的信息
             this.uploadStatus = '文件上传成功! 开始识别...'
-            await this.transcribeAudio(urlData.object_name)
+            await this.transcribeAudio(uploadResult.object_name) // 使用后端确认的 object_name
           } else {
-            const errorText = await response.text()
-            throw new Error(`上传失败，状态码: ${response.status}, 错误: ${errorText}`)
+            const errorText = await uploadResponse.text()
+            throw new Error(`上传失败，状态码: ${uploadResponse.status}, 错误: ${errorText}`)
           }
+        } else {
+           // 处理未知的 status 或错误
+           throw new Error(`未知的服务器响应状态: ${urlData.status}`)
         }
       } catch (error) {
         console.error('上传或识别错误:', error)
@@ -94,11 +133,11 @@ export default {
         this.isLoadingTranscription = false // 出错时停止加载
       }
     }, // 在 uploadAudio 方法后添加逗号
-    async transcribeAudio(objectName) {
+    async transcribeAudio(objectName, model) {
       this.isLoadingTranscription = true
       this.transcriptionResult = ''
       this.uploadStatus = '正在识别中...'
-      
+
       try {
         const response = await fetch('/api/transcribe-audio', {
           method: 'POST',
@@ -107,7 +146,7 @@ export default {
           },
           body: JSON.stringify({
             object_name: objectName,
-            model: 'gemini-2.0-flash-thinking'
+            model: model
           })
         })
 
@@ -124,6 +163,7 @@ export default {
           done = readerDone
           if (value) {
             const chunk = decoder.decode(value)
+            // 直接将原始带标签的文本追加
             this.transcriptionResult += chunk
           }
         }
@@ -132,63 +172,73 @@ export default {
       } catch (error) {
         console.error('识别错误:', error)
         this.uploadStatus = '识别失败: ' + error.message
-        this.transcriptionResult = '识别出错'
+        this.transcriptionResult = '识别出错' // 可以显示错误信息
       } finally {
         this.isLoadingTranscription = false
       }
     } // transcribeAudio 方法结束
   }, // methods 对象结束
-// 这部分代码已被移入上面的 REPLACE 块中，此处删除
 }
 </script>
 
 <style scoped>
 .upload-container {
-  max-width: 500px;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 5px;
 }
 
-input[type="file"] {
-  margin: 20px 0;
-  display: block;
+.file-upload-row, .model-select-row, .upload-btn-row {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-button {
-  padding: 10px 20px;
+.model-select {
+  width: 220px;
+  font-size: 13px;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.file-input {
+  flex: 1;
+  max-width: 220px;
+  font-size: 13px;
+}
+
+.upload-btn {
+  padding: 4px 8px;
   background-color: #42b983;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 13px;
+  transition: all 0.3s ease;
+  min-width: 70px;
+  height: 28px;
+  line-height: 1;
 }
 
-button:hover {
+.upload-btn:hover {
   background-color: #3aa876;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.loading {
-  margin-top: 20px;
-  font-style: italic;
+.status-text {
+  margin: 10px 0;
+  font-size: 14px;
   color: #666;
 }
 
-.transcription-result {
-  margin-top: 20px;
-  padding: 15px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  background-color: #f9f9f9;
-}
-
-.transcription-result h2 {
+.chat-container {
   margin-top: 0;
-  font-size: 1.1em;
-  color: #333;
-}
-
-.transcription-result p {
-  white-space: pre-wrap; /* 保留换行和空格 */
-  word-wrap: break-word;
+  border-radius: 8px;
+  background-color: #fff;
+  overflow-y: auto;
 }
 </style>

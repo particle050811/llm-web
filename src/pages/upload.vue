@@ -94,23 +94,6 @@ export default {
         this.isLoadingTranscription = false // 出错时停止加载
       }
     }, // 在 uploadAudio 方法后添加逗号
-    formatTranscription(rawText) {
-      if (!rawText) return ''
-      // 清理EventSource格式标记
-      let cleaned = rawText
-        .replace(/^data: /gm, '')  // 移除行首的"data: "
-        .replace(/\n\n$/, '')      // 移除末尾空行
-        .replace(/\[DONE\]/, '')   // 移除结束标记
-      
-      // 替换所有XML标签变体为可读格式
-      return cleaned
-        .replace(/<o[^>]*>/g, '客服: ')  // 匹配<o>和<o attr="value">等变体
-        .replace(/<\/o[^>]*>/g, '\n')    // 匹配</o>和</o attr="value">等变体
-        .replace(/<s[^>]*>/g, '用户: ')  // 匹配<s>和<s attr="value">等变体
-        .replace(/<\/s[^>]*>/g, '\n')    // 匹配</s>和</s attr="value">等变体
-        .replace(/\n+/g, '\n')           // 合并多个换行
-        .trim()
-    },
     async transcribeAudio(objectName) {
       this.isLoadingTranscription = true
       this.transcriptionResult = ''
@@ -124,7 +107,7 @@ export default {
           },
           body: JSON.stringify({
             object_name: objectName,
-            model: 'gemini-2.0-flash'
+            model: 'gemini-2.0-flash-thinking'
           })
         })
 
@@ -140,8 +123,8 @@ export default {
           const { value, done: readerDone } = await reader.read()
           done = readerDone
           if (value) {
-            const chunk = decoder.decode(value, { stream: true })
-            this.transcriptionResult += this.formatTranscription(chunk)
+            const chunk = decoder.decode(value)
+            this.transcriptionResult += chunk
           }
         }
 

@@ -42,9 +42,9 @@ except json.JSONDecodeError:
 model_list = [k for k, v in cg.items() if v.get('api_key') and v.get('base_url')]
 print(f"加载的可用模型: {model_list}")
 
-def query(model, prompt, msg):
+def query(model_name, prompt, msg):
     try:
-        md = cg[model]
+        md = cg[model_name]
         
         # 判断是否需要 JSON 输出
         if 'json' in prompt:
@@ -94,12 +94,12 @@ def get_model_list():
 @limiter.limit("300 per hour") # 实际使用时可以改成 300 per hour
 def query_llm_stream():
     data = request.get_json()
-    model = data.get('model')
+    model_name = data.get('model')
     prompt = data.get('prompt')
     msg = data.get('msg')
 
-    if model in model_list:
-        return Response(stream_with_context(query(model, prompt, msg)))
+    if model_name in model_list:
+        return Response(stream_with_context(query(model_name, prompt, msg)))
     else:
         return jsonify({'error': '不支持的模型'}), 400
 
@@ -184,7 +184,7 @@ def transcribe_audio_openai_compatible():
 
     data = request.get_json()
     object_name = data.get('object_name')
-    model = data.get('model')
+    model_name = data.get('model')
 
     if not object_name:
         return jsonify({"error": "缺少 object_name 参数"}), 400
@@ -197,7 +197,7 @@ def transcribe_audio_openai_compatible():
             file_name = object_name.split('/')[-1] if '/' in object_name else object_name
             file_format = file_name.split('.')[-1] if '.' in file_name else "mp3"
             
-            md = cg[model]
+            md = cg[model_name]
         except oss2.exceptions.NoSuchKey:
             return jsonify({"error": f"OSS文件不存在: {object_name}"}), 404
         except Exception as e:
@@ -230,8 +230,7 @@ def transcribe_audio_openai_compatible():
                 }
             ],
             modalities=["text"],
-            stream=True,
-            stream_options={"include_usage": True}
+            stream=True
         )
         print("转录 API 调用完成。")
 
@@ -241,15 +240,10 @@ def transcribe_audio_openai_compatible():
             for chunk in response:
                 delta = chunk.choices[0].delta.content
                 if delta:
+                    yield delta
                     print(delta, end='', flush=True)
-                    yield f"data: {delta}\n\n"
-            yield "data: [DONE]\n\n"
 
-        return Response(
-            stream_with_context(generate()),
-            content_type='text/event-stream',
-            headers={'Cache-Control': 'no-cache'}
-        )
+        return Response(stream_with_context(generate()))
 
     except requests.exceptions.RequestException as e:
         print(f"下载音频文件时出错 ({object_name}): {e}")
@@ -268,6 +262,7 @@ def transcribe_audio_openai_compatible():
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"处理音频识别失败: {str(e)}"}), 500
+
 
 
 if __name__ == '__main__':

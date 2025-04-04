@@ -272,4 +272,4 @@ def transcribe_audio_openai_compatible():
 
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5000) # 保持端口指定
+    app.run(host='::', port=5000, debug=False)  # 关键改动！监听所有 IPv4/IPv6 接口

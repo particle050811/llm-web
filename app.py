@@ -2,14 +2,10 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import openai
 import json
-# import oss2 # Removed OSS
-# from oss2.credentials import EnvironmentVariableCredentialsProvider # Removed OSS
 import os # Added for local file operations
 from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
 import requests
-import io # 用于将 bytes 包装成文件对象
-import mimetypes # 仍然需要推断文件名以帮助API
 
 app = Flask(__name__)
 CORS(app)  # 启用 CORS，允许跨域请求
@@ -183,6 +179,44 @@ def upload_audio():
         return jsonify({"error": f"保存文件失败: {str(e)}"}), 500
 
 
+# 新增：封装 AI 处理逻辑的内部函数
+def _process_audio_with_ai(model_config, audio_data_base64, audio_format, audio_prompt_text):
+    client = openai.OpenAI(api_key=model_config['api_key'], base_url=model_config['base_url'])
+    response = client.chat.completions.create(
+        model=model_config['model'],
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_audio",
+                        "input_audio": {
+                            "data": audio_data_base64,
+                            "format": audio_format
+                        }
+                    },
+                    {"type": "text", "text": audio_prompt_text}
+                ]
+            }
+        ],
+        modalities=["text"],
+        stream=True
+    )
+    print("转录 API 调用完成。")
+
+    # 提取结果 (处理流式响应)
+    print(f"识别结果: ")
+    def generate():
+        for chunk in response:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+                print(delta, end='', flush=True)
+
+    return generate()
+
+import os
+
 @app.route('/api/transcribe-audio', methods=['POST'])
 @limiter.limit("60 per hour") # 对识别接口单独限流
 def transcribe_audio_openai_compatible():
@@ -209,59 +243,54 @@ def transcribe_audio_openai_compatible():
         except Exception as e:
             print(f"读取本地文件时出错 ({local_path}): {e}")
             return jsonify({"error": f"读取本地文件失败: {str(e)}"}), 500
-        client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
-        with open('audio_prompt.txt', 'r',encoding='utf-8') as file:
-            audio_prompt=file.read()
-        
+
+        # 读取 audio prompt
+        try:
+            with open('audio_prompt.txt', 'r', encoding='utf-8') as file:
+                audio_prompt = file.read()
+        except FileNotFoundError:
+            print("警告: audio_prompt.txt 未找到，将使用空提示。")
+            audio_prompt = ""
+        except Exception as e:
+             print(f"读取 audio_prompt.txt 时出错: {e}")
+             return jsonify({"error": f"读取音频提示失败: {str(e)}"}), 500
+
+        # Base64 编码
         import base64
         if isinstance(file_content, str):
             file_content = file_content.encode('utf-8')
         base64_audio = base64.b64encode(file_content).decode('utf-8')
-        
-        response = client.chat.completions.create(
-            model=md['model'],
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_audio",
-                            "input_audio": {
-                                "data": base64_audio,
-                                "format": file_format
-                            }
-                        },
-                        {"type": "text", "text": audio_prompt}
-                    ]
-                }
-            ],
-            modalities=["text"],
-            stream=True
-        )
-        print("转录 API 调用完成。")
 
-        # 提取结果 (处理流式响应)
-        print(f"识别结果: ")
-        def generate():
-            for chunk in response:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    yield delta
-                    print(delta, end='', flush=True)
+        # === 环境变量验证和代理设置 ===
+        print(f"当前环境变量APP_ENV: {os.environ.get('APP_ENV')}")
+        if os.environ.get('APP_ENV') == 'local':
+            proxy_url = 'http://127.0.0.1:7890' # 或者从配置读取
+            os.environ['HTTP_PROXY'] = proxy_url
+            os.environ['HTTPS_PROXY'] = proxy_url
+            print(f"本地环境，已设置代理: {proxy_url}")
+        else:
+            print("非本地环境，跳过代理设置")
+        # === 环境验证和代理设置结束 ===
 
-        return Response(stream_with_context(generate()))
+        # 调用新的内部函数处理 AI 逻辑
+        generator = _process_audio_with_ai(md, base64_audio, file_format, audio_prompt)
+        return Response(stream_with_context(generator))
 
     except requests.exceptions.RequestException as e:
         print(f"下载音频文件时出错 ({object_name}): {e}")
         return jsonify({"error": f"无法下载音频文件: {e}"}), 500
     except openai.APIConnectionError as e:
-        print(f"无法连接到 gemini API ({md['model']}): {e}")
+        # 获取模型配置以在错误消息中使用
+        md_for_error = cg.get(model_name, {}) # 安全获取，避免KeyError
+        print(f"无法连接到 gemini API ({md_for_error.get('model', model_name)}): {e}")
         return jsonify({"error": f"无法连接到 API: {e}"}), 503
     except openai.RateLimitError as e:
-        print(f"gemini API 请求频率受限 ({md['model']}): {e}，考虑换用更廉价的模型。")
+        md_for_error = cg.get(model_name, {}) # 安全获取
+        print(f"gemini API 请求频率受限 ({md_for_error.get('model', model_name)}): {e}，考虑换用更廉价的模型。")
         return jsonify({"error": f"API 请求频率过高: {e}"}), 429
     except openai.APIStatusError as e:
-        print(f"gemini API 返回错误状态 ({md['model']}): {e.status_code} - {e.response}")
+        md_for_error = cg.get(model_name, {}) # 安全获取
+        print(f"gemini API 返回错误状态 ({md_for_error.get('model', model_name)}): {e.status_code} - {e.response}")
         return jsonify({"error": f"API 返回错误: {e.status_code} {e.message}"}), e.status_code
     except Exception as e:
         print(f"处理音频识别时发生未知错误 ({object_name}): {e}")

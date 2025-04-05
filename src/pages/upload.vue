@@ -42,7 +42,7 @@ export default {
   data() {
     return {
       selectedFile: null,
-      selectedModel: 'gemini-2.5-pro',
+      selectedModel: 'gemini-2.0-flash-thinking',
       uploadStatus: '',
       transcriptionResult: '', // 新增：存储识别结果
       isLoadingTranscription: false // 新增：识别加载状态

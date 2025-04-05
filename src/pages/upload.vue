@@ -24,164 +24,143 @@
       <SentenceBubble
         v-for="(sentence, index) in parsedSentences"
         :key="index"
-        :text="sentence.text"
-        :speaker="sentence.speaker"
+        :rawText="sentence"
+        @update:rawText="(newVal) => updateSentence(index, newVal)"
       />
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, watch } from 'vue';
 import CryptoJS from 'crypto-js';
-import SentenceBubble from '@/components/SentenceBubble.vue'; // 新增：导入 SentenceBubble 组件
+import SentenceBubble from '@/components/SentenceBubble.vue';
 
-export default {
-  mounted() {
-    document.title = '录音识别';
-  },
-  components: { // 新增：注册组件
-    SentenceBubble,
-  },
-  data() {
-    return {
-      selectedFile: null,
-      selectedModel: 'gemini-2.0-flash-thinking',
-      uploadStatus: '',
-      transcriptionResult: '', // 新增：存储识别结果
-      isLoadingTranscription: false // 新增：识别加载状态
+const selectedFile = ref(null);
+const selectedModel = ref('gemini-2.0-flash-thinking');
+const uploadStatus = ref('');
+const transcriptionResult = ref('');
+const isLoadingTranscription = ref(false);
+const parsedSentences = ref([]);
+
+watch(transcriptionResult, (newVal) => {
+  parsedSentences.value = newVal ? newVal.split('\n') : [];
+});
+
+const updateSentence = (index, newVal) => {
+  parsedSentences.value[index] = newVal;
+  transcriptionResult.value = parsedSentences.value.join('\n');
+};
+
+const calculateFileHash = async (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const wordArray = CryptoJS.lib.WordArray.create(e.target.result);
+      const md5 = CryptoJS.MD5(wordArray).toString();
+      resolve(md5);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const handleFileChange = (event) => {
+  selectedFile.value = event.target.files[0];
+};
+
+const uploadAudio = async () => {
+  if (!selectedFile.value) {
+    uploadStatus.value = '请先选择音频文件';
+    return;
+  }
+
+  try {
+    uploadStatus.value = '正在计算文件校验...';
+    const fileHash = await calculateFileHash(selectedFile.value);
+
+    uploadStatus.value = '正在检查服务器...';
+    const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(selectedFile.value.type)}&fileHash=${fileHash}`);
+    if (!urlResponse.ok) {
+      throw new Error(`获取上传链接失败，状态码: ${urlResponse.status}`);
     }
-  },
-  computed: { // 新增：计算属性来解析识别结果
-    parsedSentences() {
-      if (!this.transcriptionResult) {
-        return [];
+    const urlData = await urlResponse.json();
+
+    if (urlData.status === 'exists') {
+      uploadStatus.value = '文件已存在(服务器已有相同文件)，开始识别...';
+      await transcribeAudio(urlData.object_name, selectedModel.value);
+    } else if (urlData.status === 'new') {
+      uploadStatus.value = '准备上传文件...';
+      const formData = new FormData();
+      formData.append('file', selectedFile.value);
+      formData.append('object_name', urlData.object_name);
+
+      uploadStatus.value = '正在上传文件...';
+      const uploadResponse = await fetch('/api/upload-audio', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (uploadResponse.ok) {
+        const uploadResult = await uploadResponse.json();
+        uploadStatus.value = '文件上传成功! 开始识别...';
+        await transcribeAudio(uploadResult.object_name, selectedModel.value);
+      } else {
+        const errorText = await uploadResponse.text();
+        throw new Error(`上传失败，状态码: ${uploadResponse.status}, 错误: ${errorText}`);
       }
-      const sentences = [];
-      // 使用正则表达式匹配 <s>...</s> 或 <o>...</o>
-      const regex = /<(s|o)>(.*?)<\/\1>/g;
-      let match;
-      while ((match = regex.exec(this.transcriptionResult)) !== null) {
-        sentences.push({
-          speaker: match[1], // 's' or 'o'
-          text: match[2].trim(), // 提取文本并去除首尾空格
-        });
-      }
-      return sentences;
-    },
-  },
-  methods: {
-    async calculateFileHash(file) {
-      return new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const wordArray = CryptoJS.lib.WordArray.create(e.target.result)
-          const md5 = CryptoJS.MD5(wordArray).toString()
-          resolve(md5)
-        }
-        reader.readAsArrayBuffer(file)
+    } else {
+      throw new Error(`未知的服务器响应状态: ${urlData.status}`);
+    }
+  } catch (error) {
+    console.error('上传或识别错误:', error);
+    uploadStatus.value = '处理失败: ' + error.message;
+    isLoadingTranscription.value = false;
+  }
+};
+
+const transcribeAudio = async (objectName, model) => {
+  isLoadingTranscription.value = true;
+  transcriptionResult.value = '';
+  uploadStatus.value = '正在识别中...';
+
+  try {
+    const response = await fetch('/api/transcribe-audio', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        object_name: objectName,
+        model: model
       })
-    },
-    handleFileChange(event) {
-      this.selectedFile = event.target.files[0]
-    },
-    async uploadAudio() {
-      if (!this.selectedFile) {
-        this.uploadStatus = '请先选择音频文件'
-        return
+    });
+
+    if (!response.ok) {
+      throw new Error(`识别请求失败: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
+      if (value) {
+        const chunk = decoder.decode(value);
+        transcriptionResult.value += chunk;
       }
+    }
 
-      try {
-        this.uploadStatus = '正在计算文件校验...'
-        const fileHash = await this.calculateFileHash(this.selectedFile)
-
-        this.uploadStatus = '正在检查服务器...'
-        const urlResponse = await fetch(`/api/generate-audio-url?contentType=${encodeURIComponent(this.selectedFile.type)}&fileHash=${fileHash}`)
-        if (!urlResponse.ok) {
-          throw new Error(`获取上传链接失败，状态码: ${urlResponse.status}`)
-        }
-        const urlData = await urlResponse.json()
-
-        if (urlData.status === 'exists') {
-          this.uploadStatus = '文件已存在(服务器已有相同文件)，开始识别...'
-          await this.transcribeAudio(urlData.object_name, this.selectedModel)
-        } else if (urlData.status === 'new') {
-          // 文件不存在，需要上传到新的 /api/upload-audio 接口
-          this.uploadStatus = '准备上传文件...'
-          const formData = new FormData()
-          formData.append('file', this.selectedFile)
-          formData.append('object_name', urlData.object_name) // 将 object_name 作为表单字段发送
-
-          this.uploadStatus = '正在上传文件...'
-          const uploadResponse = await fetch('/api/upload-audio', {
-            method: 'POST',
-            body: formData
-            // 注意：发送 FormData 时不需要设置 Content-Type header
-          })
-
-          if (uploadResponse.ok) {
-            const uploadResult = await uploadResponse.json() // 可以获取后端返回的信息
-            this.uploadStatus = '文件上传成功! 开始识别...'
-            await this.transcribeAudio(uploadResult.object_name, this.selectedModel) // 使用后端确认的 object_name 并传递模型
-          } else {
-            const errorText = await uploadResponse.text()
-            throw new Error(`上传失败，状态码: ${uploadResponse.status}, 错误: ${errorText}`)
-          }
-        } else {
-           // 处理未知的 status 或错误
-           throw new Error(`未知的服务器响应状态: ${urlData.status}`)
-        }
-      } catch (error) {
-        console.error('上传或识别错误:', error)
-        this.uploadStatus = '处理失败: ' + error.message
-        this.isLoadingTranscription = false // 出错时停止加载
-      }
-    }, // 在 uploadAudio 方法后添加逗号
-    async transcribeAudio(objectName, model) {
-      this.isLoadingTranscription = true
-      this.transcriptionResult = ''
-      this.uploadStatus = '正在识别中...'
-
-      try {
-        const response = await fetch('/api/transcribe-audio', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            object_name: objectName,
-            model: model
-          })
-        })
-
-        if (!response.ok) {
-          throw new Error(`识别请求失败: ${response.status}`)
-        }
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let done = false
-
-        while (!done) {
-          const { value, done: readerDone } = await reader.read()
-          done = readerDone
-          if (value) {
-            const chunk = decoder.decode(value)
-            // 直接将原始带标签的文本追加
-            this.transcriptionResult += chunk
-          }
-        }
-
-        this.uploadStatus = '识别完成!'
-      } catch (error) {
-        console.error('识别错误:', error)
-        this.uploadStatus = '识别失败: ' + error.message
-        this.transcriptionResult = '识别出错' // 可以显示错误信息
-      } finally {
-        this.isLoadingTranscription = false
-      }
-    } // transcribeAudio 方法结束
-  }, // methods 对象结束
-}
+    uploadStatus.value = '识别完成!';
+  } catch (error) {
+    console.error('识别错误:', error);
+    uploadStatus.value = '识别失败: ' + error.message;
+    transcriptionResult.value = '识别出错';
+  } finally {
+    isLoadingTranscription.value = false;
+  }
+};
 </script>
 
 <style scoped>

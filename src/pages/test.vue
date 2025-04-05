@@ -27,6 +27,11 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
+
+// 设置页面标题
+onMounted(() => {
+  document.title = 'LLM审核答疑测试';
+});
 import { ElMessage } from 'element-plus';
 import { check_prompt, user_prompt } from '../assets/prompts'; // Keep defaults
 

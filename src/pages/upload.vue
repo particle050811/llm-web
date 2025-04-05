@@ -36,6 +36,9 @@ import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue'; // 新增：导入 SentenceBubble 组件
 
 export default {
+  mounted() {
+    document.title = '录音识别';
+  },
   components: { // 新增：注册组件
     SentenceBubble,
   },
@@ -118,7 +121,7 @@ export default {
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json() // 可以获取后端返回的信息
             this.uploadStatus = '文件上传成功! 开始识别...'
-            await this.transcribeAudio(uploadResult.object_name) // 使用后端确认的 object_name
+            await this.transcribeAudio(uploadResult.object_name, this.selectedModel) // 使用后端确认的 object_name 并传递模型
           } else {
             const errorText = await uploadResponse.text()
             throw new Error(`上传失败，状态码: ${uploadResponse.status}, 错误: ${errorText}`)

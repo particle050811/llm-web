@@ -6,6 +6,8 @@ import os # Added for local file operations
 from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
 import requests
+import os
+import time # 新增导入
 
 app = Flask(__name__)
 CORS(app)  # 启用 CORS，允许跨域请求
@@ -231,18 +233,41 @@ def transcribe_audio_openai_compatible():
     try:
         # 从本地文件系统读取文件内容
         local_path = os.path.join(AUDIO_FOLDER, object_name)
-        if not os.path.exists(local_path):
-             return jsonify({"error": f"本地文件不存在: {object_name}"}), 404
+
+        # 尝试读取本地文件，增加重试逻辑以应对文件写入延迟
+        file_content = None
+        for attempt in range(3): # 最多尝试 3 次
+            try:
+                if not os.path.exists(local_path):
+                    print(f"尝试 {attempt + 1}/3: 文件 {local_path} 尚不存在，等待...")
+                    time.sleep(0.2 * (attempt + 1)) # 等待时间逐渐增加
+                    continue
+
+                with open(local_path, 'rb') as f:
+                    file_content = f.read()
+                    print(f"文件 {local_path} 读取成功。")
+                    break # 成功读取，跳出循环
+            except PermissionError as e:
+                print(f"尝试 {attempt + 1}/3: 读取文件 {local_path} 时遇到权限错误 (可能仍在写入): {e}，等待...")
+                time.sleep(0.2 * (attempt + 1))
+            except Exception as e:
+                print(f"尝试 {attempt + 1}/3: 读取本地文件时发生意外错误 ({local_path}): {e}")
+                # 对于其他预期之外的错误，也进行重试
+                time.sleep(0.2 * (attempt + 1))
+
+        if file_content is None:
+            print(f"尝试多次后仍无法读取文件: {local_path}")
+            return jsonify({"error": f"无法读取本地文件: {object_name} (尝试3次后失败)"}), 500
 
         try:
-            with open(local_path, 'rb') as f:
-                file_content = f.read()
             # 从 object_name 推断文件格式
             file_format = object_name.split('.')[-1] if '.' in object_name else "mp3"
             md = cg[model_name] # 获取模型配置
-        except Exception as e:
-            print(f"读取本地文件时出错 ({local_path}): {e}")
-            return jsonify({"error": f"读取本地文件失败: {str(e)}"}), 500
+        except KeyError:
+             return jsonify({"error": f"无效的模型名称: {model_name}"}), 400
+        except Exception as e: # 保留对读取配置等其他潜在错误的捕获
+            print(f"处理文件格式或模型配置时出错 ({local_path}): {e}")
+            return jsonify({"error": f"处理文件或配置失败: {str(e)}"}), 500
 
         # 读取 audio prompt
         try:

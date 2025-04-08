@@ -395,4 +395,4 @@ def analyze_report():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)  # 监听所有 IPv4 接口
+    app.run(host='::', port=5000, debug=False)  # 监听所有 IPv6 和 IPv4（取决于系统）

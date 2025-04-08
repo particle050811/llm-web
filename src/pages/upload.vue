@@ -29,15 +29,25 @@
         @update:rawText="(newVal) => updateSentence(index, newVal)"
       />
     </div>
+    <ReportInfo
+      v-if="showReportInfo"
+      v-model:school="reportSchool"
+      v-model:method="reportMethod"
+      v-model:phone="reportPhone"
+      v-model:time="reportTime"
+    />
   </div>
+  <br><br><br><br><br>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
 import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue';
+import ReportInfo from '@/components/ReportInfo.vue';
 
 const selectedFile = ref(null);
+const originalFileName = ref('');
 const savedModel = localStorage.getItem('selectedModel');
 const selectedModel = ref(savedModel || 'gemini-2.0-flash-thinking');
 
@@ -49,6 +59,7 @@ const transcriptionResult = ref('');
 const isLoadingTranscription = ref(false);
 const parsedSentences = ref([]); // 还原为简单字符串数组
 const audioFileUrl = ref(''); // 用于存储Blob URL
+const showReportInfo = ref(false);
 
 watch(transcriptionResult, (newVal) => {
   // 按行分割并过滤可能的空行
@@ -79,6 +90,7 @@ const calculateFileHash = async (file) => {
 const handleFileChange = (event) => {
   const file = event.target.files[0];
   selectedFile.value = file;
+  originalFileName.value = file.name;
   if (file) {
     // 如果存在先前的Blob URL则撤销它，防止内存泄漏
     if (audioFileUrl.value) {
@@ -189,6 +201,11 @@ const transcribeAudio = async (objectName, model) => {
     }
 
     uploadStatus.value = '识别完成!';
+    try {
+      await fetchReportInfo(originalFileName.value, transcriptionResult.value);
+    } catch (e) {
+      console.error('调用举报信息接口失败', e);
+    }
   } catch (error) {
     console.error('识别错误:', error);
     uploadStatus.value = '识别失败: ' + error.message;
@@ -197,6 +214,52 @@ const transcribeAudio = async (objectName, model) => {
     isLoadingTranscription.value = false;
   }
 };
+const reportSchool = ref('');
+const reportMethod = ref('');
+const reportPhone = ref('');
+const reportTime = ref('');
+
+/**
+ * 发送识别结果和文件名到服务器，获取举报信息
+ */
+const fetchReportInfo = async (fileName, transcriptionText) => {
+  try {
+    const response = await fetch('/api/analyze-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        object_name: fileName,
+        transcription_text: transcriptionText
+      })
+    });
+    if (!response.ok) {
+      throw new Error('举报信息请求失败: ' + response.status);
+    }
+    const data = await response.json();
+    console.log('举报信息返回数据', data);
+
+    // 格式化时间字符串
+    let formattedTime = '';
+    if (data.time && /^\d{14}$/.test(data.time)) {
+      const t = data.time;
+      formattedTime = `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)} ${t.slice(8,10)}:${t.slice(10,12)}`;
+    } else {
+      formattedTime = data.time || '';
+    }
+
+    // 避免用空字符串覆盖已有值
+    if (data.school) reportSchool.value = data.school;
+    if (data.method) reportMethod.value = data.method;
+    if (data.phone) reportPhone.value = data.phone;
+    if (formattedTime) reportTime.value = formattedTime;
+    showReportInfo.value = true;
+  } catch (error) {
+    console.error('获取举报信息失败:', error);
+  }
+};
+
 </script>
 
 <style scoped>
@@ -259,4 +322,38 @@ const transcribeAudio = async (objectName, model) => {
   background-color: #fff;
   overflow-y: auto;
 }
+.report-info {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.report-title {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.report-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.report-label {
+  width: 80px;
+  font-size: 14px;
+  color: #333;
+}
+
+.report-input {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
 </style>

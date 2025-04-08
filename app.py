@@ -323,7 +323,76 @@ def transcribe_audio_openai_compatible():
         traceback.print_exc()
         return jsonify({"error": f"处理音频识别失败: {str(e)}"}), 500
 
+# 举报信息分析接口
+@app.route('/api/analyze-report', methods=['POST'])
+@limiter.limit("60 per hour")
+def analyze_report():
+    try:
+        data = request.get_json()
+        object_name = data.get('object_name')
+        transcription_text = data.get('transcription_text')
+
+        if not object_name:
+            return jsonify({"error": "缺少 object_name 参数"}), 400        
+        if not transcription_text:
+            return jsonify({"error": "缺少 transcription_text 参数"}), 400
+
+        # 选择默认模型
+        model_name = "gemini-2.0-flash-thinking"
+
+        md = cg.get(model_name)
+
+        if not md:
+            return jsonify({"error": f"模型配置未找到: {model_name}"}), 500
+
+        # 从文件读取提示词模板
+        with open('report_prompt.txt', 'r', encoding='utf-8') as f:
+            prompt_template = f.read()
+
+        # 格式化提示词
+        prompt = prompt_template.format(
+            transcription_text=transcription_text,
+            object_name=object_name
+        )
+
+        client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
+        response = client.chat.completions.create(
+            model=md['model'],
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            stream=False
+        )
+
+        content = response.choices[0].message.content
+        # 解析JSON
+        try:
+            # 预处理，去除markdown代码块标记
+            content = content.strip()
+            if content.startswith("```"):
+                # 去除开头的 ```json 或 ```
+                content = content.lstrip("`").lstrip("json").lstrip().rstrip()
+                # 去除结尾的 ```
+                if content.endswith("```"):
+                    content = content[:-3].strip()
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            print(f"模型响应内容: {content}")
+            # 返回原始内容，方便调试
+            return jsonify({"error": "模型未返回有效JSON", "raw_response": content}), 500
+
+        # 确保所有字段存在
+        for key in ["school", "method", "phone", "time"]:
+            if key not in result:
+                result[key] = ""
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"分析举报信息时出错: {e}")
+        return jsonify({"error": f"分析举报信息失败: {str(e)}"}), 500
+
 
 
 if __name__ == '__main__':
-    app.run(host='::', port=5000, debug=False)  # 关键改动！监听所有 IPv4/IPv6 接口
+    app.run(host='0.0.0.0', port=5000, debug=False)  # 监听所有 IPv4 接口

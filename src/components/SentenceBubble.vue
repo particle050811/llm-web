@@ -161,7 +161,9 @@ const playAudio = () => {
     audio.play().catch(e => console.error("播放音频失败:", e)); // 添加播放错误处理
 
     // 在到达结束时间时停止播放
-    const stopAt = computedEndTime.value;
+    const stopAt = (computedStartTime.value == computedEndTime.value)
+      ? computedEndTime.value + 0.5
+      : computedEndTime.value;
     const checkTime = () => {
       if (audio.currentTime >= stopAt) {
         audio.pause();

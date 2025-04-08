@@ -20,6 +20,7 @@
       <button @click="uploadAudio" class="upload-btn">上传并识别音频</button>
     </div>
     <p v-if="uploadStatus" class="status-text">{{ uploadStatus }}</p>
+    <audio v-if="showAudioPlayer" ref="mainAudio" :src="audioFileUrl" controls style="width:100%; margin:10px 0;"></audio>
     <div class="chat-container">
       <SentenceBubble
         v-for="(sentence, index) in parsedSentences"
@@ -41,10 +42,14 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, provide } from 'vue';
 import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue';
 import ReportInfo from '@/components/ReportInfo.vue';
+const mainAudio = ref(null);
+provide('mainAudio', mainAudio);
+
+const showAudioPlayer = ref(false);
 
 const selectedFile = ref(null);
 const originalFileName = ref('');
@@ -91,6 +96,8 @@ const handleFileChange = (event) => {
   const file = event.target.files[0];
   selectedFile.value = file;
   originalFileName.value = file.name;
+  // 选择新文件时立即显示播放器
+  showAudioPlayer.value = true;
   if (file) {
     // 如果存在先前的Blob URL则撤销它，防止内存泄漏
     if (audioFileUrl.value) {
@@ -202,6 +209,7 @@ const transcribeAudio = async (objectName, model) => {
     }
 
     uploadStatus.value = '识别完成!';
+    
     try {
       await fetchReportInfo(originalFileName.value, transcriptionResult.value);
     } catch (e) {
@@ -267,41 +275,42 @@ const fetchReportInfo = async (fileName, transcriptionText) => {
 .upload-container {
   max-width: 600px;
   margin: 0 auto;
-  padding: 5px;
+  padding: 10px;
 }
 
 .file-upload-row, .model-select-row, .upload-btn-row {
-  margin-bottom: 10px;
+  margin-bottom: 15px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .model-select {
-  width: 220px;
-  font-size: 13px;
-  padding: 4px;
-  border-radius: 4px;
+  width: 260px;
+  font-size: 18px;
+  padding: 8px;
+  border-radius: 6px;
   border: 1px solid #ddd;
 }
 
 .file-input {
   flex: 1;
-  max-width: 220px;
-  font-size: 13px;
+  max-width: 260px;
+  font-size: 18px;
+  padding: 8px;
 }
 
 .upload-btn {
-  padding: 4px 8px;
+  padding: 8px 16px;
   background-color: #42b983;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 18px;
   transition: all 0.3s ease;
-  min-width: 70px;
-  height: 28px;
+  min-width: 100px;
+  height: 40px;
   line-height: 1;
 }
 

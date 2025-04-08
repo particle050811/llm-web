@@ -1,7 +1,7 @@
 <template>
   <div class="sentence-bubble-wrapper" :class="speakerClass">
     <button v-if="!isEditing" v-show="speaker === 's'" class="edit-button-left" @click.stop="startEdit">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M14.06 9L15 9.94L5.92 19H5V18.08L14.06 9ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z" fill="currentColor"/>
       </svg>
     </button>
@@ -20,7 +20,7 @@
       rows="1"
     ></textarea>
     <button v-if="!isEditing" v-show="speaker === 'o'" class="edit-button-right" @click.stop="startEdit">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M14.06 9L15 9.94L5.92 19H5V18.08L14.06 9ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z" fill="currentColor"/>
       </svg>
     </button>
@@ -28,8 +28,11 @@
 </template>
 
 <script setup>
-import { computed, ref, nextTick, watch } from 'vue';
+import { computed, ref, nextTick, watch, inject } from 'vue';
 const emit = defineEmits(['update:rawText']);
+
+const mainAudio = inject('mainAudio');
+let currentTimeUpdateHandler = null;
 
 const props = defineProps({
   rawText: {
@@ -155,25 +158,40 @@ const handleTextareaEnter = (e) => {
 
 const playAudio = () => {
   try {
-    if (!props.audioUrl) {
-      console.error('音频URL为空');
+    if (!mainAudio || !mainAudio.value) {
+      console.error('mainAudio元素未找到');
       return;
     }
-    const audio = new Audio(props.audioUrl);
-    // 使用计算属性获取开始和结束时间
-    audio.currentTime = computedStartTime.value;
-    audio.play().catch(e => console.error("播放音频失败:", e)); // 添加播放错误处理
 
-    // 在到达结束时间时停止播放
+    const audioEl = mainAudio.value;
+
+    // 暂停当前播放，避免重叠
+    audioEl.pause();
+
+    // 移除之前的监听，避免多次绑定
+    if (currentTimeUpdateHandler) {
+      audioEl.removeEventListener('timeupdate', currentTimeUpdateHandler);
+    }
+
+    // 设置起始播放时间
+    audioEl.currentTime = computedStartTime.value;
+
+    // 播放音频
+    audioEl.play().catch(e => console.error("播放音频失败:", e));
+
     const stopAt = computedEndTime.value;
-    const checkTime = () => {
-      if (audio.currentTime >= stopAt) {
-        audio.pause();
-        audio.removeEventListener('timeupdate', checkTime);
+
+    // 定义新的监听函数
+    currentTimeUpdateHandler = () => {
+      if (audioEl.currentTime >= stopAt) {
+        audioEl.pause();
+        audioEl.removeEventListener('timeupdate', currentTimeUpdateHandler);
+        currentTimeUpdateHandler = null;
       }
     };
-    
-    audio.addEventListener('timeupdate', checkTime);
+
+    audioEl.addEventListener('timeupdate', currentTimeUpdateHandler);
+
   } catch (error) {
     console.error('播放音频时发生错误:', error);
   }
@@ -263,7 +281,6 @@ const playAudio = () => {
 
 .edit-button-left,
 .edit-button-right {
-  margin-right: 8px;
   padding: 4px;
   background: none;
   border: none;

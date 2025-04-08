@@ -25,6 +25,7 @@
         v-for="(sentence, index) in parsedSentences"
         :key="index"
         :rawText="sentence"
+        :audioUrl="audioFileUrl"
         @update:rawText="(newVal) => updateSentence(index, newVal)"
       />
     </div>
@@ -37,19 +38,30 @@ import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue';
 
 const selectedFile = ref(null);
-const selectedModel = ref('gemini-2.0-flash-thinking');
+const savedModel = localStorage.getItem('selectedModel');
+const selectedModel = ref(savedModel || 'gemini-2.0-flash-thinking');
+
+watch(selectedModel, (newVal) => {
+  localStorage.setItem('selectedModel', newVal);
+});
 const uploadStatus = ref('');
 const transcriptionResult = ref('');
 const isLoadingTranscription = ref(false);
-const parsedSentences = ref([]);
+const parsedSentences = ref([]); // 还原为简单字符串数组
+const audioFileUrl = ref(''); // 用于存储Blob URL
 
 watch(transcriptionResult, (newVal) => {
-  parsedSentences.value = newVal ? newVal.split('\n') : [];
+  // 按行分割并过滤可能的空行
+  parsedSentences.value = newVal ? newVal.split('\n').filter(line => line.trim() !== '') : [];
 });
 
 const updateSentence = (index, newVal) => {
-  parsedSentences.value[index] = newVal;
-  transcriptionResult.value = parsedSentences.value.join('\n');
+  // Update the specific sentence in the array
+  if (parsedSentences.value && parsedSentences.value.length > index) {
+      parsedSentences.value[index] = newVal;
+      // Reconstruct the full transcription string
+      transcriptionResult.value = parsedSentences.value.join('\n');
+  }
 };
 
 const calculateFileHash = async (file) => {
@@ -65,7 +77,27 @@ const calculateFileHash = async (file) => {
 };
 
 const handleFileChange = (event) => {
-  selectedFile.value = event.target.files[0];
+  const file = event.target.files[0];
+  selectedFile.value = file;
+  if (file) {
+    // 如果存在先前的Blob URL则撤销它，防止内存泄漏
+    if (audioFileUrl.value) {
+      URL.revokeObjectURL(audioFileUrl.value);
+    }
+    // 为选中的文件创建新的Blob URL
+    audioFileUrl.value = URL.createObjectURL(file);
+    // 当选择新文件时重置转录结果
+    transcriptionResult.value = '';
+    parsedSentences.value = [];
+    uploadStatus.value = '文件已选择，等待上传。';
+  } else {
+    // 如果没有选择文件则清除URL
+    if (audioFileUrl.value) {
+      URL.revokeObjectURL(audioFileUrl.value);
+    }
+    audioFileUrl.value = '';
+    uploadStatus.value = '请选择一个音频文件。';
+  }
 };
 
 const uploadAudio = async () => {
@@ -85,8 +117,11 @@ const uploadAudio = async () => {
     }
     const urlData = await urlResponse.json();
 
+    // 这里不再需要设置audioFileUrl，它由handleFileChange处理
+
     if (urlData.status === 'exists') {
       uploadStatus.value = '文件已存在(服务器已有相同文件)，开始识别...';
+      // 我们仍然需要object_name用于转录API调用
       await transcribeAudio(urlData.object_name, selectedModel.value);
     } else if (urlData.status === 'new') {
       uploadStatus.value = '准备上传文件...';
@@ -103,6 +138,7 @@ const uploadAudio = async () => {
       if (uploadResponse.ok) {
         const uploadResult = await uploadResponse.json();
         uploadStatus.value = '文件上传成功! 开始识别...';
+        // 我们仍然需要object_name用于转录API调用
         await transcribeAudio(uploadResult.object_name, selectedModel.value);
       } else {
         const errorText = await uploadResponse.text();

@@ -113,6 +113,7 @@ const handleFileChange = (event) => {
 };
 
 const uploadAudio = async () => {
+  showReportInfo.value = false;
   if (!selectedFile.value) {
     uploadStatus.value = '请先选择音频文件';
     return;

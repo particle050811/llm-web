@@ -44,7 +44,7 @@ const props = defineProps({
 });
 
 // 从 rawText 提取时间戳字符串
-const timeRegex = /\[(\d{2}):(\d{2})-(\d{2}):(\d{2})\]/;
+const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?-(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/;
 
 
 // 辅助函数：解析时间戳字符串 [MM:SS-MM:SS]
@@ -56,10 +56,14 @@ const parseTimestamp = (text) => {
   if (match) {
     const startMinutes = parseInt(match[1], 10);
     const startSeconds = parseInt(match[2], 10);
-    const endMinutes = parseInt(match[3], 10);
-    const endSeconds = parseInt(match[4], 10);
-    startTime = startMinutes * 60 + startSeconds;
-    endTime = endMinutes * 60 + endSeconds;
+    const startMillis = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
+
+    const endMinutes = parseInt(match[4], 10);
+    const endSeconds = parseInt(match[5], 10);
+    const endMillis = match[6] ? parseInt(match[6].padEnd(3, '0'), 10) : 0;
+
+    startTime = startMinutes * 60 + startSeconds + startMillis / 1000;
+    endTime = endMinutes * 60 + endSeconds + endMillis / 1000;
   }
   // 返回解析结果，如果没匹配到，则 startTime 和 endTime 保持为 -1
   return { startTime, endTime };
@@ -161,9 +165,7 @@ const playAudio = () => {
     audio.play().catch(e => console.error("播放音频失败:", e)); // 添加播放错误处理
 
     // 在到达结束时间时停止播放
-    const stopAt = (computedStartTime.value == computedEndTime.value)
-      ? computedEndTime.value + 0.5
-      : computedEndTime.value;
+    const stopAt = computedEndTime.value;
     const checkTime = () => {
       if (audio.currentTime >= stopAt) {
         audio.pause();

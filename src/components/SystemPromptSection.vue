@@ -44,24 +44,24 @@ import {
 import { Hide, View } from '@element-plus/icons-vue';
 
 const props = defineProps({
-  modelValue: String // Corresponds to the 'prompt' ref in App.vue
+  modelValue: String // 对应于 App.vue 中的 'prompt' 响应式引用
 });
 
 const emit = defineEmits(['update:modelValue']);
 
-const promptShow = ref(true); // Keep local state for visibility toggle
+const promptShow = ref(true); // 控制显示切换的本地状态
 
-// Method to update the prompt value via emit
+// 通过 emit 更新 prompt 值的方法
 const setPrompt = (value) => {
   emit('update:modelValue', value);
 };
 
-// Method to handle updates from llm-put and emit them upwards
+// 处理来自 llm-put 的更新并向上传递的方法
 const emitUpdate = (value) => {
   emit('update:modelValue', value);
 };
 
-// Expose imported prompts to the template
-// It's better to directly use imported variables in the template event handlers
-// defineExpose is not needed here for accessing these variables in the template.
+// 将导入的提示词暴露给模板使用
+// 在模板事件处理器中直接使用导入的变量更为合适
+// 这里不需要使用 defineExpose 来访问这些变量
 </script>

@@ -25,9 +25,9 @@
 
 <script setup>
 const props = defineProps({
-  models: Array, // List of available models [{ label: '...', value: '...' }]
-  modelValue: Array, // Corresponds to modelList in App.vue (v-model)
-  isSixTests: Boolean // Corresponds to isSixTests in App.vue (v-model)
+  models: Array, // 可用模型列表 [{ label: '...', value: '...' }]
+  modelValue: Array, // 对应 App.vue 中的 modelList (v-model)
+  isSixTests: Boolean // 对应 App.vue 中的 isSixTests (v-model)
 });
 
 const emit = defineEmits(['update:modelValue', 'update:isSixTests', 'execute']);
@@ -50,6 +50,6 @@ const emitExecute = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px; /* Add some space between the button and the switch */
+  gap: 10px; /* 在按钮和开关之间添加一些间距 */
 }
 </style>

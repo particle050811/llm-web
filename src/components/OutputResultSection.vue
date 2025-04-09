@@ -11,8 +11,8 @@
             <div class="reasoning-content" v-html="renderMarkdown(result.reasoning)"></div>
           </el-collapse-item>
         </el-collapse>
-        <!-- Use :modelValue and @update:modelValue for llm-put if it needs two-way binding -->
-        <!-- Assuming llm-put is primarily for display here, pass content as a prop -->
+        <!-- 如果 llm-put 需要双向绑定，使用 :modelValue 和 @update:modelValue -->
+        <!-- 假设 llm-put 主要用于展示，这里作为 prop 传递内容 -->
         <llm-put :modelValue="result.content" readonly /> 
         <el-row>
           <el-col :span="8">
@@ -38,11 +38,11 @@
 
 <script setup>
 import { defineProps } from 'vue';
-import llmPut from './llm-put.vue'; // Assuming llm-put is in the same directory
+import llmPut from './llm-put.vue'; // 假设 llm-put 位于同一目录
 import { marked } from 'marked';
 
 const props = defineProps({
-  output: Array // Array of result objects from App.vue
+  output: Array // 来自 App.vue 的结果对象数组
 });
 
 const renderMarkdown = (content) => {
@@ -52,9 +52,9 @@ const renderMarkdown = (content) => {
 
 <style scoped>
 .reasoning-content {
-  /* Add any specific styling for reasoning content if needed */
+  /* 如有需要，可为推理内容添加特定样式 */
   white-space: pre-wrap; /* Preserve whitespace and wrap text */
   word-wrap: break-word;
 }
-/* Add other styles if necessary */
+/* 如有必要，添加其他样式 */
 </style>

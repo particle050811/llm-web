@@ -72,10 +72,10 @@ watch(transcriptionResult, (newVal) => {
 });
 
 const updateSentence = (index, newVal) => {
-  // Update the specific sentence in the array
+  // 更新数组中的特定句子
   if (parsedSentences.value && parsedSentences.value.length > index) {
       parsedSentences.value[index] = newVal;
-      // Reconstruct the full transcription string
+      // 重新构建完整的转录字符串
       transcriptionResult.value = parsedSentences.value.join('\n');
   }
 };
@@ -96,8 +96,10 @@ const handleFileChange = (event) => {
   const file = event.target.files[0];
   selectedFile.value = file;
   originalFileName.value = file.name;
+
   // 选择新文件时立即显示播放器
   showAudioPlayer.value = true;
+  showReportInfo.value = false;
   if (file) {
     // 如果存在先前的Blob URL则撤销它，防止内存泄漏
     if (audioFileUrl.value) {
@@ -120,7 +122,6 @@ const handleFileChange = (event) => {
 };
 
 const uploadAudio = async () => {
-  showReportInfo.value = false;
   if (!selectedFile.value) {
     uploadStatus.value = '请先选择音频文件';
     return;

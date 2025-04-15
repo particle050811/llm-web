@@ -13,13 +13,14 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reports (
-            object_name TEXT PRIMARY KEY,
+            object_name TEXT,
             school TEXT,
             method TEXT,
             phone TEXT,
             time TEXT,
             transcription_text TEXT,
-            submission_timestamp TEXT
+            submission_timestamp TEXT,
+            PRIMARY KEY (object_name, submission_timestamp)
         )
     ''')
     conn.commit()
@@ -27,13 +28,13 @@ def init_db():
 
 def save_report_data(report_data):
     """
-    将举报数据保存到 SQLite 数据库中，以 object_name 为主键。
+    将举报数据保存到 SQLite 数据库中，以 object_name 和 submission_timestamp 为复合主键。
 
-    Args:
-        report_data (dict): 包含举报信息的字典，必须包含 'object_name'。
+   Args:
+       report_data (dict): 包含举报信息的字典，必须包含 'object_name'。
 
-    Returns:
-        tuple: (bool, str) 表示操作是否成功和相应的消息。
+   Returns:
+       tuple: (bool, str) 表示操作是否成功和相应的消息。
     """
     if 'object_name' not in report_data:
         return False, "缺少 'object_name' 字段"
@@ -56,7 +57,7 @@ def save_report_data(report_data):
         ''', (object_name, school, method, phone, time, transcription_text, submission_timestamp))
         conn.commit()
         conn.close()
-        return True, f"数据已成功保存或更新，主键为: {object_name}"
+        return True, f"数据已成功保存或更新，复合主键为: {object_name}, {submission_timestamp}"
     except sqlite3.Error as e:
         print(f"数据库错误: {e}")
         return False, f"数据库操作失败: {e}"

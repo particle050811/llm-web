@@ -25,3 +25,4 @@ dist-ssr
 backend/audio_files/
 backend/report_database.db
 backend/ai.json
+**/__pycache__

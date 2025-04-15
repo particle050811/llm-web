@@ -2,9 +2,15 @@
 from flask import request, jsonify, Response, stream_with_context, current_app
 from backend.config import get_model_list as config_get_model_list # 重命名以避免冲突
 from backend.llm_service import query_llm
-from backend.database_service import save_report_data, get_all_reports
+from backend.database_service import (
+    save_report_data,
+    get_all_reports,
+    get_submission_timestamps,
+    get_report_by_timestamp
+)
 from backend.audio_service import (
     check_audio_file_status,
+    get_audio_file,
     save_uploaded_audio,
     transcribe_audio,
     analyze_report_info
@@ -108,3 +114,57 @@ def register_routes(app):
         """获取所有举报数据的路由"""
         reports = get_all_reports()
         return jsonify(reports)
+
+    @app.route('/api/get-timestamps', methods=['GET'])
+    def get_timestamps_route():
+        """获取指定 object_name 的所有提交时间戳"""
+        object_name = request.args.get('object_name')
+        if not object_name:
+            return jsonify({"error": "缺少 'object_name' 参数"}), 400
+        
+        timestamps = get_submission_timestamps(object_name)
+        return jsonify({"timestamps": timestamps})
+
+    @app.route('/api/get-report-details', methods=['GET'])
+    def get_report_details_route():
+        """获取指定 object_name 和 timestamp 的举报详情"""
+        object_name = request.args.get('object_name')
+        timestamp = request.args.get('timestamp')
+        
+        if not object_name or not timestamp:
+            return jsonify({"error": "缺少 'object_name' 或 'timestamp' 参数"}), 400
+            
+        report_details = get_report_by_timestamp(object_name, timestamp)
+        
+        if report_details:
+            return jsonify(report_details)
+        else:
+            return jsonify({"error": "未找到指定的举报记录"}), 404
+
+    @app.route('/api/get-audio-file', methods=['GET'])
+    def get_audio_file_route():
+        """获取指定 object_name 的音频文件内容(直接播放)"""
+        object_name = request.args.get('object_name')
+        if not object_name:
+            return jsonify({"error": "缺少 'object_name' 参数"}), 400
+
+        # 调用修改后的 get_audio_file 函数
+        audio_data, content_type, status_code = get_audio_file(AUDIO_FOLDER, object_name)
+        
+        if audio_data is None:
+            if status_code == 404:
+                return jsonify({"error": f"音频文件未找到: {object_name}"}), 404
+            elif status_code == 403:
+                return jsonify({"error": "没有权限访问该文件"}), 403
+            else:
+                return jsonify({"error": "获取音频文件失败"}), status_code or 500
+            
+        return Response(
+            audio_data,
+            status=200,
+            mimetype=content_type,
+            headers={
+                'Cache-Control': 'no-cache',
+                'Accept-Ranges': 'bytes'
+            }
+        )

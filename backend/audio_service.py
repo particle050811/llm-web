@@ -302,3 +302,45 @@ def analyze_report_info(script_dir, object_name, transcription_text):
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"分析举报信息失败: {str(e)}"}), 500
+
+def get_audio_file(audio_folder, object_name):
+    """获取音频文件内容
+    
+    Args:
+        audio_folder: 音频文件存储目录
+        object_name: 音频文件名
+        
+    Returns:
+        tuple: (audio_data, content_type, status_code) 或 (None, None, status_code) 如果失败
+    """
+    if not object_name:
+        print("错误: 缺少object_name参数")
+        return None, None, 400
+        
+    local_path = os.path.join(audio_folder, object_name)
+    
+    try:
+        if not os.path.exists(local_path):
+            print(f"错误: 文件不存在 - {local_path}")
+            return None, None, 404
+            
+        with open(local_path, 'rb') as f:
+            audio_data = f.read()
+            
+        extension = os.path.splitext(object_name)[1].lower()
+        content_type = {
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg',
+            '.aac': 'audio/aac'
+        }.get(extension, 'application/octet-stream')
+        
+        print(f"成功获取音频文件: {object_name} (类型: {content_type})")
+        return audio_data, content_type, 200
+        
+    except PermissionError as e:
+        print(f"权限错误: {e}")
+        return None, None, 403
+    except Exception as e:
+        print(f"获取音频文件时出错: {e}")
+        return None, None, 500

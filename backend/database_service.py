@@ -91,5 +91,58 @@ def get_all_reports():
     finally:
         conn.close()
 
+def get_submission_timestamps(object_name):
+    """获取指定 object_name 的所有 submission_timestamp
+    
+    Args:
+        object_name (str): 报告的对象名称
+        
+    Returns:
+        list: 时间戳字符串列表，按降序排列
+    """
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT submission_timestamp
+            FROM reports
+            WHERE object_name = ?
+            ORDER BY submission_timestamp DESC
+        ''', (object_name,))
+        timestamps = [row[0] for row in cursor.fetchall()]
+        return timestamps
+    except sqlite3.Error as e:
+        print(f"数据库查询错误 (get_submission_timestamps): {e}")
+        return []
+    finally:
+        conn.close()
+
+def get_report_by_timestamp(object_name, submission_timestamp):
+    """根据 object_name 和 submission_timestamp 获取报告详情
+    
+    Args:
+        object_name (str): 报告的对象名称
+        submission_timestamp (str): 报告的提交时间戳
+        
+    Returns:
+        dict: 包含报告详情的字典，如果未找到则返回 None
+    """
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT *
+            FROM reports
+            WHERE object_name = ? AND submission_timestamp = ?
+        ''', (object_name, submission_timestamp))
+        report = cursor.fetchone()
+        return dict(report) if report else None
+    except sqlite3.Error as e:
+        print(f"数据库查询错误 (get_report_by_timestamp): {e}")
+        return None
+    finally:
+        conn.close()
+
 # 应用启动时初始化数据库
 init_db()

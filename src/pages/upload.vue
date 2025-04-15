@@ -37,20 +37,21 @@
       v-model:phone="reportPhone"
       v-model:time="reportTime"
     />
-    <div class="submit-btn-row" style="margin-top: 20px;" v-if="showSubmitButton">
-      <button @click="submitReportData" :disabled="isSubmitButtonDisabled" class="submit-btn">
-        {{ isSubmitButtonDisabled ? '提交中...' : '提交举报信息' }}
-      </button>
-    </div>
+    <SubmitButton
+      :isDisabled="isSubmitButtonDisabled"
+      :showButton="showSubmitButton"
+      @submit="handleSubmitReport"
+    />
   </div>
   <br><br><br><br><br>
 </template>
 
 <script setup>
-import { ref, watch, provide, computed } from 'vue'; // Import computed
+import { ref, watch, provide, computed } from 'vue';
 import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue';
 import ReportInfo from '@/components/ReportInfo.vue';
+import SubmitButton from '@/components/SubmitButton.vue';
 const mainAudio = ref(null);
 provide('mainAudio', mainAudio);
 
@@ -282,48 +283,18 @@ const fetchReportInfo = async (fileName, transcriptionText) => {
   }
 };
 
-// 新增：提交举报信息的函数
-const submitReportData = async () => {
-  if (!currentObjectName.value) {
-    alert('无法提交，缺少文件标识 (object_name)。请先上传并识别音频。');
-    return;
-  }
+// 在组件setup顶部添加provide
+provide('reportSchool', reportSchool);
+provide('reportMethod', reportMethod);
+provide('reportPhone', reportPhone);
+provide('reportTime', reportTime);
+provide('currentObjectName', currentObjectName);
+provide('transcriptionResult', transcriptionResult);
 
-  // 验证必填字段
-  const requiredFields = {
-    '学校': reportSchool.value,
-    '举报方式': reportMethod.value,
-    '联系电话': reportPhone.value,
-    '时间': reportTime.value
-  };
-
-  for (const [field, value] of Object.entries(requiredFields)) {
-    if (!value || !value.trim()) {
-      alert(`请填写${field}信息`);
-      return;
-    }
-  }
-
-
-  // 验证时间格式 (YYYY-MM-DD HH:mm)
-  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(reportTime.value.trim())) {
-    alert('时间格式应为 YYYY-MM-DD HH:mm');
-    return;
-  }
-
-  isSubmitButtonDisabled.value = true; // 禁用按钮
-
-  const reportData = {
-    object_name: currentObjectName.value,
-    school: reportSchool.value.trim(),
-    method: reportMethod.value.trim(),
-    phone: reportPhone.value.trim(),
-    time: reportTime.value.trim(),
-    transcription_text: transcriptionResult.value // 包含语音识别内容
-  };
-
-  console.log('准备提交举报数据:', reportData);
-
+// 新增：处理提交报告数据
+const handleSubmitReport = async (reportData) => {
+  isSubmitButtonDisabled.value = true;
+  
   try {
     const response = await fetch('/api/submit-final-report', {
       method: 'POST',
@@ -346,10 +317,7 @@ const submitReportData = async () => {
     console.error('提交举报信息时出错:', error);
     alert(`提交失败: ${error.message}`);
   } finally {
-    // 设置5秒后解除禁用
-    setTimeout(() => {
-      isSubmitButtonDisabled.value = false;
-    }, 5000);
+    isSubmitButtonDisabled.value = false;
   }
 };
 
@@ -416,63 +384,5 @@ const submitReportData = async () => {
   background-color: #fff;
   overflow-y: auto;
 }
-.report-info {
-  margin-top: 20px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-}
 
-.report-title {
-  font-weight: bold;
-  font-size: 16px;
-  margin-bottom: 10px;
-}
-
-.report-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.report-label {
-  width: 80px;
-  font-size: 14px;
-  color: #333;
-}
-
-.report-input {
-  flex: 1;
-  padding: 4px 6px;
-  font-size: 13px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.submit-btn-row {
-  display: flex;
-  justify-content: center;
-}
-
-.submit-btn {
-  padding: 10px 20px;
-  background-color: #007bff; /* 蓝色背景 */
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s ease, opacity 0.3s ease;
-}
-
-.submit-btn:hover:not(:disabled) {
-  background-color: #0056b3; /* 深蓝色悬停效果 */
-}
-
-.submit-btn:disabled {
-  background-color: #cccccc; /* 灰色禁用状态 */
-  cursor: not-allowed;
-  opacity: 0.7;
-}
 </style>

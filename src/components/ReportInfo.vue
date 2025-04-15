@@ -61,6 +61,12 @@ const timeValue = computed({
   line-height: 1.5;
 }
 
+.report-title {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
 .report-row {
   display: flex;
   align-items: center;

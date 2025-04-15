@@ -74,9 +74,14 @@ def get_all_reports():
     
     try:
         cursor.execute('''
-            SELECT object_name, school, method, phone, time, transcription_text, submission_timestamp
-            FROM reports
-            ORDER BY submission_timestamp DESC
+            SELECT r.object_name, r.school, r.method, r.phone, r.time, r.transcription_text, r.submission_timestamp
+            FROM reports r
+            INNER JOIN (
+                SELECT object_name, MAX(submission_timestamp) as max_timestamp
+                FROM reports
+                GROUP BY object_name
+            ) latest ON r.object_name = latest.object_name AND r.submission_timestamp = latest.max_timestamp
+            ORDER BY r.submission_timestamp DESC
         ''')
         reports = [dict(row) for row in cursor.fetchall()]
         return reports

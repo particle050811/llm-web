@@ -11,6 +11,7 @@
         @click="goToEditPage(report.object_name)"
       >
         <p><strong>学校:</strong> {{ report.school || 'N/A' }}</p>
+        <p><strong>途径:</strong> {{ report.method || 'N/A' }}</p>
         <p><strong>电话:</strong> {{ report.phone || 'N/A' }}</p>
         <p><strong>时间:</strong> {{ report.time || 'N/A' }}</p>
         <small>ID: {{ report.object_name }}</small>

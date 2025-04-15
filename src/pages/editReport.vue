@@ -290,8 +290,8 @@ provide('transcriptionResult', transcriptionResult); // SubmitButton needs the f
 <style scoped>
 .edit-report-container {
   max-width: 600px; /* Increased max-width */
-  margin: 20px auto;
-  padding: 20px;
+  margin: 0 auto;
+  padding: 10px;
   border-radius: 8px;
 }
 
@@ -303,6 +303,7 @@ h1 {
 
 p {
   font-size: 16px;
+  margin-top: 0;
   margin-bottom: 15px; /* Adjusted margin */
   text-align: center;
 }
@@ -327,11 +328,6 @@ strong {
   min-width: 250px; /* Ensure select has enough width */
 }
 
-.chat-container {
-  margin-top: 20px; /* Add margin */
-  margin-bottom: 20px; /* Add margin */
-  /* Styles removed to prevent boxing SentenceBubble */
-}
 
 .error-text {
   color: #dc3545; /* Bootstrap danger color */
@@ -356,10 +352,5 @@ a:hover {
   background-color: #5a6268;
 }
 
-/* Ensure ReportInfo and SubmitButton have some spacing */
-.chat-container + ReportInfo,
-ReportInfo + SubmitButton {
-  margin-top: 20px;
-}
 
 </style>

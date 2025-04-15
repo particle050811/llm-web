@@ -1,6 +1,6 @@
 <template>
   <div class="home-container">
-    <h1>举报列表</h1>
+    <h1>录音识别信息列表</h1>
     <div v-if="loading" class="loading">加载中...</div>
     <div v-if="error" class="error">{{ error }}</div>
     <div v-if="!loading && !error" class="report-list">
@@ -67,15 +67,16 @@ onMounted(() => {
 <style scoped>
 .home-container {
   max-width: 800px;
-  margin: 20px auto;
-  padding: 20px;
+  margin: 0px auto;
+  padding: 10px;
   font-family: sans-serif;
 }
 
 h1 {
   text-align: center;
   color: #333;
-  margin-bottom: 30px;
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 
 .loading, .error, .no-reports {
@@ -91,7 +92,7 @@ h1 {
 .report-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
+  gap: 10px;
 }
 
 .report-card {
@@ -110,7 +111,7 @@ h1 {
 
 .report-card p {
   margin: 5px 0;
-  font-size: 14px;
+  font-size: 18px;
   color: #555;
 }
 
@@ -120,8 +121,8 @@ h1 {
 
 .report-card small {
     display: block;
-    margin-top: 10px;
-    font-size: 12px;
+    margin-top: 5px;
+    font-size: 14px;
     color: #999;
     word-break: break-all; /* 防止长 ID 溢出 */
 }

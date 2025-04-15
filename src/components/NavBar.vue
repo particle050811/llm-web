@@ -16,6 +16,7 @@ export default {
 .navbar {
   display: flex;
   justify-content: center;
+  gap: 1rem; /* 使用 gap 属性设置间距 */
   padding: 1rem;
   background-color: #f0f0f0;
   border-bottom: 1px solid #ddd;
@@ -23,7 +24,6 @@ export default {
 }
 
 .nav-link {
-  margin-right: 1rem;
   text-decoration: none;
   color: #333;
 }

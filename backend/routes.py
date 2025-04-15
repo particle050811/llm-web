@@ -2,7 +2,7 @@
 from flask import request, jsonify, Response, stream_with_context, current_app
 from backend.config import get_model_list as config_get_model_list # 重命名以避免冲突
 from backend.llm_service import query_llm
-from backend.database_service import save_report_data
+from backend.database_service import save_report_data, get_all_reports
 from backend.audio_service import (
     check_audio_file_status,
     save_uploaded_audio,
@@ -102,3 +102,9 @@ def register_routes(app):
             return jsonify({"status": "success", "message": message})
         else:
             return jsonify({"error": message}), 400
+
+    @app.route('/api/reports', methods=['GET'])
+    def get_reports_route():
+        """获取所有举报数据的路由"""
+        reports = get_all_reports()
+        return jsonify(reports)

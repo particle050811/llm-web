@@ -62,5 +62,29 @@ def save_report_data(report_data):
         print(f"数据库错误: {e}")
         return False, f"数据库操作失败: {e}"
 
+def get_all_reports():
+    """获取所有举报数据
+    
+    Returns:
+        list: 举报数据列表，每个元素是一个字典
+    """
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row  # 使返回字典格式
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT object_name, school, method, phone, time, transcription_text, submission_timestamp
+            FROM reports
+            ORDER BY submission_timestamp DESC
+        ''')
+        reports = [dict(row) for row in cursor.fetchall()]
+        return reports
+    except sqlite3.Error as e:
+        print(f"数据库查询错误: {e}")
+        return []
+    finally:
+        conn.close()
+
 # 应用启动时初始化数据库
 init_db()

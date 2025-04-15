@@ -22,5 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-test.py
-audio_files/
+backend/audio_files/
+backend/report_database.db
+backend/ai.json

@@ -37,12 +37,17 @@
       v-model:phone="reportPhone"
       v-model:time="reportTime"
     />
+    <div class="submit-btn-row" style="margin-top: 20px;" v-if="showSubmitButton">
+      <button @click="submitReportData" :disabled="isSubmitButtonDisabled" class="submit-btn">
+        {{ isSubmitButtonDisabled ? '提交中...' : '提交举报信息' }}
+      </button>
+    </div>
   </div>
   <br><br><br><br><br>
 </template>
 
 <script setup>
-import { ref, watch, provide } from 'vue';
+import { ref, watch, provide, computed } from 'vue'; // Import computed
 import CryptoJS from 'crypto-js';
 import SentenceBubble from '@/components/SentenceBubble.vue';
 import ReportInfo from '@/components/ReportInfo.vue';
@@ -65,6 +70,9 @@ const isLoadingTranscription = ref(false);
 const parsedSentences = ref([]); // 还原为简单字符串数组
 const audioFileUrl = ref(''); // 用于存储Blob URL
 const showReportInfo = ref(false);
+const currentObjectName = ref(''); // 新增：存储当前文件的 object_name
+const isSubmitButtonDisabled = ref(false); // 新增：控制提交按钮的禁用状态
+const showSubmitButton = ref(false); // 新增：控制提交按钮的显示状态
 
 watch(transcriptionResult, (newVal) => {
   // 按行分割并过滤可能的空行
@@ -99,6 +107,7 @@ const handleFileChange = (event) => {
 
   // 选择新文件时立即显示播放器
   showAudioPlayer.value = true;
+  showSubmitButton.value = false;
   showReportInfo.value = false;
   if (file) {
     // 如果存在先前的Blob URL则撤销它，防止内存泄漏
@@ -143,6 +152,7 @@ const uploadAudio = async () => {
     if (urlData.status === 'exists') {
       uploadStatus.value = '文件已存在(服务器已有相同文件)，开始识别...';
       // 我们仍然需要object_name用于转录API调用
+      currentObjectName.value = urlData.object_name; // 存储 object_name
       await transcribeAudio(urlData.object_name, selectedModel.value);
     } else if (urlData.status === 'new') {
       uploadStatus.value = '准备上传文件...';
@@ -160,6 +170,7 @@ const uploadAudio = async () => {
         const uploadResult = await uploadResponse.json();
         uploadStatus.value = '文件上传成功! 开始识别...';
         // 我们仍然需要object_name用于转录API调用
+        currentObjectName.value = uploadResult.object_name; // 存储 object_name
         await transcribeAudio(uploadResult.object_name, selectedModel.value);
       } else {
         const errorText = await uploadResponse.text();
@@ -265,8 +276,80 @@ const fetchReportInfo = async (fileName, transcriptionText) => {
     if (data.phone) reportPhone.value = data.phone;
     if (formattedTime) reportTime.value = formattedTime;
     showReportInfo.value = true;
+    showSubmitButton.value = true;
   } catch (error) {
     console.error('获取举报信息失败:', error);
+  }
+};
+
+// 新增：提交举报信息的函数
+const submitReportData = async () => {
+  if (!currentObjectName.value) {
+    alert('无法提交，缺少文件标识 (object_name)。请先上传并识别音频。');
+    return;
+  }
+
+  // 验证必填字段
+  const requiredFields = {
+    '学校': reportSchool.value,
+    '举报方式': reportMethod.value,
+    '联系电话': reportPhone.value,
+    '时间': reportTime.value
+  };
+
+  for (const [field, value] of Object.entries(requiredFields)) {
+    if (!value || !value.trim()) {
+      alert(`请填写${field}信息`);
+      return;
+    }
+  }
+
+
+  // 验证时间格式 (YYYY-MM-DD HH:mm)
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(reportTime.value.trim())) {
+    alert('时间格式应为 YYYY-MM-DD HH:mm');
+    return;
+  }
+
+  isSubmitButtonDisabled.value = true; // 禁用按钮
+
+  const reportData = {
+    object_name: currentObjectName.value,
+    school: reportSchool.value.trim(),
+    method: reportMethod.value.trim(),
+    phone: reportPhone.value.trim(),
+    time: reportTime.value.trim(),
+    transcription_text: transcriptionResult.value // 包含语音识别内容
+  };
+
+  console.log('准备提交举报数据:', reportData);
+
+  try {
+    const response = await fetch('/api/submit-final-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reportData)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`提交失败: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('提交成功:', result);
+    alert('举报信息提交成功！');
+
+  } catch (error) {
+    console.error('提交举报信息时出错:', error);
+    alert(`提交失败: ${error.message}`);
+  } finally {
+    // 设置5秒后解除禁用
+    setTimeout(() => {
+      isSubmitButtonDisabled.value = false;
+    }, 5000);
   }
 };
 
@@ -367,4 +450,29 @@ const fetchReportInfo = async (fileName, transcriptionText) => {
   border-radius: 4px;
 }
 
+.submit-btn-row {
+  display: flex;
+  justify-content: center;
+}
+
+.submit-btn {
+  padding: 10px 20px;
+  background-color: #007bff; /* 蓝色背景 */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease, opacity 0.3s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background-color: #0056b3; /* 深蓝色悬停效果 */
+}
+
+.submit-btn:disabled {
+  background-color: #cccccc; /* 灰色禁用状态 */
+  cursor: not-allowed;
+  opacity: 0.7;
+}
 </style>

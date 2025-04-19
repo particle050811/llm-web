@@ -68,26 +68,9 @@ def save_uploaded_audio(audio_folder, file, object_name):
 def _process_audio_with_ai(model_config, audio_data_base64, audio_format, audio_prompt_text):
     """内部函数：使用 AI 模型处理音频数据"""
     try:
-        # === 代理设置 ===
-        proxy_url = None
-        if os.environ.get('APP_ENV') == 'local':
-            proxy_url = 'http://127.0.0.1:7890' # 或者从配置读取
-            print(f"本地环境 (audio_service)，将设置环境变量代理: {proxy_url}")
-            os.environ['HTTP_PROXY'] = proxy_url
-            os.environ['HTTPS_PROXY'] = proxy_url
-        else:
-            # 如果不是本地环境，确保移除代理环境变量，以防之前设置过
-            os.environ.pop('HTTP_PROXY', None)
-            os.environ.pop('HTTPS_PROXY', None)
-
-        # 创建一个普通的 http_client，它会自动读取环境变量
-        http_client = httpx.Client()
-        # === 代理设置结束 ===
-
         client = openai.OpenAI(
             api_key=model_config['api_key'],
-            base_url=model_config['base_url'],
-            http_client=http_client # 传递包含代理的 http 客户端
+            base_url=model_config['base_url']
         )
         response = client.chat.completions.create(
             model=model_config['model'],
@@ -224,7 +207,7 @@ def analyze_report_info(script_dir, object_name, transcription_text):
         return jsonify({"error": "缺少 transcription_text 参数"}), 400
 
     # 选择默认模型 (可以考虑从配置读取)
-    model_name = "gemini-2.0-flash-thinking-exp-01-21"
+    model_name = "gemini-2.5-flash-preview-04-17"
     md = get_gemini_config(model_name)
 
     if not md:
@@ -242,25 +225,9 @@ def analyze_report_info(script_dir, object_name, transcription_text):
             object_name=object_name
         )
 
-        # === 代理设置 ===
-        proxy_url = None
-        if os.environ.get('APP_ENV') == 'local':
-            proxy_url = 'http://127.0.0.1:7890' # 或者从配置读取
-            print(f"本地环境 (analyze_report)，将设置环境变量代理: {proxy_url}")
-            os.environ['HTTP_PROXY'] = proxy_url
-            os.environ['HTTPS_PROXY'] = proxy_url
-        else:
-            os.environ.pop('HTTP_PROXY', None)
-            os.environ.pop('HTTPS_PROXY', None)
-
-        # 创建一个普通的 http_client
-        http_client = httpx.Client()
-        # === 代理设置结束 ===
-
         client = openai.OpenAI(
             api_key=md['api_key'],
-            base_url=md['base_url'],
-            http_client=http_client # 传递包含代理的 http 客户端
+            base_url=md['base_url']
         )
         response = client.chat.completions.create(
             model=md['model'],

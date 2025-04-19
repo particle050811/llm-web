@@ -9,16 +9,20 @@ app = create_app()
 # 注册路由
 register_routes(app)
 
-# === 环境变量验证和代理设置 (移到这里或启动脚本更合适) ===
-# 可以在这里根据需要设置代理，或者在运行脚本中设置环境变量
-# 例如:
-# if os.environ.get('APP_ENV') == 'local':
-#     proxy_url = 'http://127.0.0.1:7890' # 或者从配置读取
-#     os.environ['HTTP_PROXY'] = proxy_url
-#     os.environ['HTTPS_PROXY'] = proxy_url
-#     print(f"本地环境，已设置代理: {proxy_url}")
-# else:
-#     print("非本地环境，跳过代理设置")
+# === 环境变量验证和代理设置 ===
+# 在这里根据 APP_ENV 环境变量设置代理
+proxy_url = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+
+if os.environ.get('APP_ENV') == 'local' and not proxy_url:
+    # 如果是本地环境且未通过环境变量设置代理，则使用默认本地代理
+    proxy_url = 'http://127.0.0.1:7890' # 可以从配置读取或使用其他默认值
+    os.environ['HTTP_PROXY'] = proxy_url
+    os.environ['HTTPS_PROXY'] = proxy_url
+    print(f"本地环境，已设置默认代理: {proxy_url}")
+elif proxy_url:
+    print(f"已通过环境变量设置代理: {proxy_url}")
+else:
+    print("未设置代理")
 # === 环境验证和代理设置结束 ===
 
 

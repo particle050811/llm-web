@@ -11,9 +11,9 @@
     </div>
     <div class="model-select-row">
       <select v-model="selectedModel" class="model-select">
-        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-        <option value="gemini-2.0-flash-thinking">gemini-2.0-flash-thinking</option>
-        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        <option value="gemini-2.5-pro-exp-03-25">gemini-2.5-pro</option>
+        <option value="gemini-2.5-flash-preview-04-17">gemini-2.5-flash</option>
+        <option value="gemini-2.0-flash-thinking-exp-01-21">gemini-2.0-flash-thinking</option>
       </select>
     </div>
     <div class="upload-btn-row">
@@ -60,7 +60,7 @@ const showAudioPlayer = ref(false);
 const selectedFile = ref(null);
 const originalFileName = ref('');
 const savedModel = localStorage.getItem('selectedModel');
-const selectedModel = ref(savedModel || 'gemini-2.0-flash-thinking');
+const selectedModel = ref(savedModel || 'gemini-2.5-pro-exp-03-25');
 
 watch(selectedModel, (newVal) => {
   localStorage.setItem('selectedModel', newVal);

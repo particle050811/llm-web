@@ -1,28 +1,30 @@
 <template>
-  <el-row justify="center" :gutter="20">
-    <!-- System Prompt Section -->
-    <el-col :xs="24" :sm="14" :md="14" :lg="8" justify="center" style="display: flex; flex-direction: column;">
-      <SystemPromptSection v-model="prompt" />
-    </el-col>
+  <div style="margin: 10px;">
+    <el-row justify="center" :gutter="20">
+      <!-- System Prompt Section -->
+      <el-col :xs="24" :sm="14" :md="14" :lg="8" justify="center" style="display: flex; flex-direction: column;">
+        <SystemPromptSection v-model="prompt" />
+      </el-col>
 
-    <!-- User Input Section -->
-    <el-col :xs="24" :sm="10" :md="10" :lg="6" justify="center">
-      <UserInputSection v-model="msg" />
-    </el-col>
-  </el-row>
+      <!-- User Input Section -->
+      <el-col :xs="24" :sm="10" :md="10" :lg="6" justify="center">
+        <UserInputSection v-model="msg" />
+      </el-col>
+    </el-row>
 
-  <!-- Model Execution Section -->
-  <ModelExecutionSection
-    :models="models"
-    v-model="modelList"
-    v-model:isSixTests="isSixTests"
-    @execute="execute"
-  />
+    <!-- Model Execution Section -->
+    <ModelExecutionSection
+      :models="models"
+      v-model="modelList"
+      v-model:isSixTests="isSixTests"
+      @execute="execute"
+    />
 
-  <!-- Output Result Section -->
-  <OutputResultSection :output="output" />
+    <!-- Output Result Section -->
+    <OutputResultSection :output="output" />
 
-  <br><br><br><br><br>
+    <br><br><br><br><br>
+  </div>
 </template>
 
 <script setup>

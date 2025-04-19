@@ -117,13 +117,14 @@ def get_submission_timestamps(object_name):
     finally:
         conn.close()
 
-def get_report_by_timestamp(object_name, submission_timestamp):
-    """根据 object_name 和 submission_timestamp 获取报告详情
-    
+def get_report_by_timestamp(object_name, submission_timestamp=None):
+    """根据 object_name 和 submission_timestamp 获取报告详情。
+       如果 submission_timestamp 为空或未提供，则返回最新的报告。
+
     Args:
         object_name (str): 报告的对象名称
-        submission_timestamp (str): 报告的提交时间戳
-        
+        submission_timestamp (str, optional): 报告的提交时间戳。默认为 None，表示获取最新版本。
+
     Returns:
         dict: 包含报告详情的字典，如果未找到则返回 None
     """
@@ -131,11 +132,23 @@ def get_report_by_timestamp(object_name, submission_timestamp):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
-        cursor.execute('''
-            SELECT *
-            FROM reports
-            WHERE object_name = ? AND submission_timestamp = ?
-        ''', (object_name, submission_timestamp))
+        if submission_timestamp:
+            # 如果提供了时间戳，查询特定版本
+            cursor.execute('''
+                SELECT *
+                FROM reports
+                WHERE object_name = ? AND submission_timestamp = ?
+            ''', (object_name, submission_timestamp))
+        else:
+            # 如果未提供时间戳，查询最新版本
+            cursor.execute('''
+                SELECT *
+                FROM reports
+                WHERE object_name = ?
+                ORDER BY submission_timestamp DESC
+                LIMIT 1
+            ''', (object_name,))
+
         report = cursor.fetchone()
         return dict(report) if report else None
     except sqlite3.Error as e:

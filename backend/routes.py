@@ -131,9 +131,11 @@ def register_routes(app):
         object_name = request.args.get('object_name')
         timestamp = request.args.get('timestamp')
         
-        if not object_name or not timestamp:
-            return jsonify({"error": "缺少 'object_name' 或 'timestamp' 参数"}), 400
+        if not object_name:
+            return jsonify({"error": "缺少 'object_name' 参数"}), 400
             
+        # timestamp 现在是可选的，get() 会在参数不存在时返回 None
+        # get_report_by_timestamp 函数已更新以处理 timestamp 为 None 的情况
         report_details = get_report_by_timestamp(object_name, timestamp)
         
         if report_details:

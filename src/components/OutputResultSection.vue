@@ -13,7 +13,8 @@
         </el-collapse>
         <!-- 如果 llm-put 需要双向绑定，使用 :modelValue 和 @update:modelValue -->
         <!-- 假设 llm-put 主要用于展示，这里作为 prop 传递内容 -->
-        <llm-put :modelValue="result.content" readonly /> 
+        <!-- 监听 update:modelValue 事件来更新 result.content -->
+        <llm-put :modelValue="result.content" @update:modelValue="updateContent(result, $event)" />
         <el-row>
           <el-col :span="8">
             耗时：<span v-if="result.duration !== null">{{ result.duration }} 秒</span>
@@ -47,6 +48,15 @@ const props = defineProps({
 
 const renderMarkdown = (content) => {
   return marked(content || '');
+};
+
+// 更新 result 内容的方法
+const updateContent = (result, newValue) => {
+  // 尝试直接修改 props 中的对象属性。注意：这通常不推荐，但可能是最简单的临时解决方案。
+  // 如果需要更规范的数据流管理，应考虑向上触发事件。
+  result.content = newValue;
+  // 如果需要更新字数等依赖 content 的计算值，也应在此处处理或触发相应更新
+  // 例如：result.charCount = newValue.length;
 };
 </script>
 

@@ -7,7 +7,7 @@ import openai
 import requests
 import httpx # 导入 httpx 用于代理
 from flask import jsonify, Response, stream_with_context
-from backend.config import get_model_config, get_script_dir # 导入配置
+from backend.config import get_model_config, get_script_dir, get_gemini_config # 导入配置
 
 # --- 音频文件处理逻辑 ---
 
@@ -176,7 +176,7 @@ def transcribe_audio(audio_folder, script_dir, object_name, model_name):
     try:
         # 推断格式和获取模型配置
         file_format = object_name.split('.')[-1].lower() if '.' in object_name else "mp3"
-        md = get_model_config(model_name)
+        md = get_gemini_config(model_name)
         if not md:
              return jsonify({"error": f"无效的模型名称: {model_name}"}), 400
 
@@ -224,8 +224,8 @@ def analyze_report_info(script_dir, object_name, transcription_text):
         return jsonify({"error": "缺少 transcription_text 参数"}), 400
 
     # 选择默认模型 (可以考虑从配置读取)
-    model_name = "gemini-2.0-flash-thinking"
-    md = get_model_config(model_name)
+    model_name = "gemini-2.0-flash-thinking-exp-01-21"
+    md = get_gemini_config(model_name)
 
     if not md:
         return jsonify({"error": f"模型配置未找到: {model_name}"}), 500

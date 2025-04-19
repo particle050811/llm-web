@@ -23,16 +23,17 @@ def query_llm(model_name, prompt, msg):
             return {"error": f"模型配置未找到: {model_name}"}, 400 # 返回错误字典和状态码
 
         # 判断是否需要 JSON 输出
+        # 默认根据 prompt 判断
         response_format = {'type': 'json_object'} if 'json' in prompt else None
-        # 特殊模型处理逻辑 (保留)
-        if "R1" in md:
+        # 如果模型配置中显式禁用 json_format，则覆盖默认设置
+        if md.get('json_format') is False:
             response_format = None
 
         client = openai.OpenAI(api_key=md['api_key'], base_url=md['base_url'])
         response = client.chat.completions.create(
             model=md['model'],
             messages=[
-                {"role": "system", "content": prompt},
+                {"role": "user", "content": prompt},
                 {"role": "user", "content": msg}
             ],
             stream=True,

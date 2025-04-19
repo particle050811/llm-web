@@ -37,3 +37,23 @@ def get_model_config(model_name):
 def get_script_dir():
     """返回脚本所在目录"""
     return script_dir
+
+def get_gemini_config(model_name):
+    model_cnt_path = os.path.join(script_dir, f'{model_name}_cnt.txt')
+    api_path = os.path.join(script_dir, f'api.txt')
+
+    if not os.path.exists(model_cnt_path):
+        cnt = 0
+    else:
+        with open(model_cnt_path, 'rb') as f:
+            cnt = int(f.read())
+    with open(model_cnt_path, 'wb') as f:
+        f.write(str(cnt + 1).encode())
+    with open(api_path, 'r') as f:
+        api_list = f.read().split('\n')
+    return {
+        "model": model_name,
+        "api_key": api_list[cnt % len(api_list)],
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
+    }
+    pass
